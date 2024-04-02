@@ -1,28 +1,73 @@
-import main.groovy.org.manci.Table
+import org.manci.Table
+
+import java.text.SimpleDateFormat
 
 class ManCI {
-    Map<String, List<Map<String, Object>>> stages
+    Map<String, List<Map<String, Object>>> stages = [:]
     boolean isCI = false
     String CIName = "ManCI V1"
     Table table
+    List<Map<String, Object>> params
+    String description
+    List<String> paramsDescription = []
+    def script
 
-    def ManCI(boolean isCI = false, String CIName = null) {
-        this.isCI = isCI ? isCI : System.getenv("CI") == "true"
-        this.CIName = CIName ? CIName : System.getenv("CINAME") ? System.getenv("CINAME") : "ManCI V1"
+    ManCI(script, boolean isCI = null, String CIName = null) {
+        this.script = script
+        this.isCI = isCI ?: (script.params.CI ? script.env.CI : false)
+        this.CIName = CIName ?: (script.params.CIName ? script.env.CINAME : "ManCI")
+
+        script.echo "ManCI: ${this.isCI}"
 
     }
 
-    def setParams(Map<String, Object> params) {
-        this.params = params
+    def setParams(List<Map<String, Object>> params = null) {
+        if (params == null) {
+            this.params = script.ManCIParams
+        } else {
+            this.params = params
+        }
+        List<Object> propertiesParams = []
+        this.params.each {
+            paramsDescription.add("* `${it.name}`: ${it.description}")
+            if (it.type == "choice") {
+                propertiesParams.add(script.choice(name: it.name, description: it.description, choices: it.choices))
+            } else if (it.type == "string") {
+                propertiesParams.add(script.string(name: it.name, description: it.description, defaultValue: it.defaultValue))
+            } else if (it.type == "boolean") {
+                propertiesParams.add(script.booleanParam(name: it.name, description: it.description, defaultValue: it.defaultValue))
+            } else if (it.type == "password") {
+                propertiesParams.add(script.password(name: it.name, description: it.description, defaultValue: it.defaultValue))
+            } else if (it.type == "textarea") {
+                propertiesParams.add(script.textarea(name: it.name, description: it.description, defaultValue: it.defaultValue))
+            } else if (it.type == "file") {
+                propertiesParams.add(script.file(name: it.name, description: it.description, defaultValue: it.defaultValue))
+            } else if (it.type == "credentials") {
+                propertiesParams.add(script.credentials(name: it.name, description: it.description,
+                                defaultValue: it.defaultValue, credentialType: it.credentialType, required: it.required)
+                )
+            }
+        }
+        script.properties([script.parameters(propertiesParams)])
     }
 
-    def setDescription(String description) {
-        this.description = description
+    void setDescription(String description = null) {
+        if (description == null) {
+            this.description = script.ManCIProjectDescription
+        } else {
+            this.description = description
+        }
     }
 
-    def mstage(String stageName, Map<String, Object> stageConfig, Closure body) {
+    static getNowTime() {
+        def now = new Date()
+        def formatter = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss")
+        return formatter.format(now)
+    }
+
+    def stage(String stageName, Map<String, Object> stageConfig, Closure body) {
         def groupName = stageConfig.get("group", "default")
-        if(!stages.containsKey(groupName)){
+        if (!stages.containsKey(groupName)) {
             stages[groupName] = []
         }
         stages[groupName].add([
@@ -31,7 +76,7 @@ class ManCI {
         ])
     }
 
-    def static timestampConvert(timestamp) {
+    static String timestampConvert(timestamp) {
         def ms = 0
         def s = 0
         def min = 0
@@ -42,27 +87,75 @@ class ManCI {
         if (timestamp >= 60000) {
             min = (int) (timestamp / 1000 / 60) % 60
         }
-        return "${min}min${s}s"
+        return "${min}min${s}s" as String
+    }
+
+    def withRun(String nodeLabels = null, Closure body) {
+        if (!this.description) {
+            setDescription()
+        }
+        if (!this.params) {
+            setParams()
+        }
+        script.node(nodeLabels) {
+            body.call()
+        }
+        run()
     }
 
     def run() {
+        Map<String, Closure> parallelStage = [:] as Map<String, Closure>
         if (isCI) {
-            table = new Table(CIName, "", "", stageNames)
-            table.tableCreate()
-            Map<String, Closure> stageRun = [:]
-            stages.collectEntries {
-                stageRun[it] = {
-                    def stageName = it.value.name
-                    def stageBody = it.value.body
-                    def startTime = System.currentTimeMillis()
-                    stage(stageName) {
-                        stageBody.call()
-                    }
-                    def elapsedTime = timestampConvert(System.currentTimeMillis() - startTime)
-                    table.addColumns([[stageName, table.SUCCESS_LABEL, elapsedTime, "", "", "", ""]])
+            List<String> stageNames = [] as List<String>
+            stages.each {
+                it.value.each {
+                    stageNames.add(it.name as String)
                 }
             }
-            parallel(stageRun)
+            table = new Table(CIName, "", description + "\n<details>\n<summary>参数说明:</summary>\n\n" + paramsDescription.join("\n") + "\n</details>", stageNames)
+            stages.each { group, v ->
+                parallelStage[group] = {
+                    v.each {
+                        def startTime = System.currentTimeMillis()
+                        Integer buildResult // 0: success, 1: failure, 2: aborted
+                        try {
+                            script.stage(it.name) {
+                                it.body.call()
+                            }
+                            buildResult = 0
+                        } catch (org.jenkinsci.plugins.workflow.steps.FlowInterruptedException ignored) {
+                            buildResult = 2
+                        } catch (InterruptedException ignored) {
+                            buildResult = 2
+                        } catch (Exception ignored) {
+                            buildResult = 1
+                        }
+                        String elapsedTime = timestampConvert(System.currentTimeMillis() - startTime)
+                        def nowTime = getNowTime()
+                        Integer runCnt = table.getStageRunTotal(it.name as String) + 1
+                        if (buildResult == 0) {
+                            table.addColumns([[it.name, group, table.SUCCESS_LABEL, elapsedTime, runCnt, nowTime, "", ""]])
+                        } else if (buildResult == 1) {
+                            table.addColumns([[it.name, group, table.FAILURE_LABEL, elapsedTime, runCnt, nowTime, "", ""]])
+                        } else if (buildResult == 2) {
+                            table.addColumns([[it.name, group, table.ABORTED_LABEL, elapsedTime, runCnt, nowTime, "", ""]])
+                        }
+                        script.echo table.text
+                    }
+                }
+            }
+        } else {
+            stages.each { k, v ->
+                parallelStage[k] = {
+                    v.each {
+                        script.stage(it.name) {
+                            it.body.call()
+                        }
+                    }
+                }
+            }
         }
+        script.parallel parallelStage
+        script.echo "ManCI Finished"
     }
 }

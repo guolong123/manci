@@ -3,7 +3,7 @@ package org.manci
 
 class Table {
     String tableTag = "MANCI V1"
-    def tableHeader = ["检查项", "检查状态", "执行耗时", "执行次数", "最后一次执行时间", "触发策略", "备注"]
+    def tableHeader = ["检查项", "分组", "检查状态", "执行耗时", "执行次数", "最后一次执行时间", "触发策略", "备注"]
     public String text = ""
     def commentBody = ""
     def commentInfo = ""
@@ -28,16 +28,16 @@ class Table {
         }
         if (this.commentBody) {
             // this.log.debug("commentBody: ${commentBody}")
-            this.tableParse(this.commentBody)
-            this.tableCreate()
+            this.table = tableParse(this.commentBody)
+            this.text = tableCreate(tableHeader, commentInfo, this.table)
         } else {
             // this.log.debug("stageList: ${stageList}")
             def columnList = []
             stageList.each { col ->
-                columnList.add([col, WAITING_LABEL, "", "", "0", "", ""])
+                columnList.add([col, "", WAITING_LABEL, "", "", "0", "", ""])
             }
             this.table = ["header": this.tableHeader, "columns": columnList]
-            this.tableCreate()
+            this.text = tableCreate(tableTag, commentInfo, this.table)
         }
     }
 
@@ -56,6 +56,7 @@ class Table {
                 }
             }
         }
+        this.text = tableCreate(tableTag, commentInfo, this.table)
     }
 
     def getStageRunTotal(String stageName) {
@@ -85,7 +86,8 @@ class Table {
         return failureStages
     }
 
-    def tableParse(String text) {
+    @NonCPS
+    static tableParse(String text) {
         /* 该方法解析表格为格式化数据
            例如：
            """
@@ -113,19 +115,16 @@ class Table {
 
         // 提取表头
         def headerLine = tableLines[0]
-        println(tableLines)
         def header = headerLine.split(' \\| ')[1..-1].collect { it.trim() }
-        println(header)
-
         // 提取表格数据
         def rows = tableLines[2..-1].collect { it.split(' \\| ')[1..-1].collect { it.trim().replace("\\", "\\\\") } }
 
-        table = [header: header, columns: rows] as Map<String, List<String>>
-        // this.log.debug("${this.table}")
+        return [header: header, columns: rows] as Map<String, List<String>>
+
     }
 
-
-    def tableCreate() {
+    @NonCPS
+    static tableCreate(tableTag, commentInfo, Map<String, Object> table) {
         /*
         该方法将接收一个map，转换为markdown格式的表格字符串，map结构如下：
         {
@@ -142,14 +141,14 @@ class Table {
         | test-static-check | :x:unsuccessful | [构建地址](http://jenkins.ketaops.cc/job/ketaops-ci-ketadb/2220/display/redirect) | 0min42s |
         | test-backend-unittest | :x:unsuccessful | [单测报告](http://jenkins.ketaops.cc/job/ketaops-ci-ketadb/2225/display/redirect?page=tests) | 2min1s |
         */
-        def header = this.table.header
-        def columns = this.table.columns
-
+        def header = table.get("header")
+        def columns = table.get("columns")
         def tableStr = " | " + header.join(" | ") + " | \n | " + header.collect { "---" }.join(" | ") + " | \n"
         columns.each { row ->
             tableStr += " | " + row.join(" | ") + " | \n"
         }
-        this.text = "# " + this.tableTag + "\n\n" + tableStr + "\n\n" + commentInfo
-        this.text = this.text.replace("\"", "\\\"")
+        def text = "# " + tableTag + "\n\n" + tableStr + "\n\n" + commentInfo
+        text = text.replace("\"", "\\\"")
+        return text
     }
 }
