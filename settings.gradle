@@ -1,0 +1,4 @@
+rootProject.name = 'manci'
+include 'src:main:groovy'
+findProject(':src:main:groovy')?.name = 'groovy'
+
