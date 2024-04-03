@@ -10,7 +10,7 @@ class GiteeApi {
     String CICommentBody
     String CICommentUrl
 
-    GiteeApi(token=null, repoPath, pullRequestID, CICommentID=null, CICommentTag) {
+    GiteeApi(String token=null, String repoPath, String pullRequestID, String CICommentTag) {
         if (token == null) {
             this.token = System.getenv("GITEE_TOKEN")
         } else {
@@ -18,7 +18,6 @@ class GiteeApi {
         }
         this.repoPath = repoPath
         this.pullRequestID = pullRequestID
-        this.CICommentID = CICommentID
         this.CICommentTag = CICommentTag
     }
 

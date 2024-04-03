@@ -6,28 +6,25 @@ import java.text.SimpleDateFormat
 class ManCI {
     Map<String, List<Map<String, Object>>> stages = [:]
     boolean isCI = false
-    String CIName = "ManCI V1"
+    public String CIName = "ManCI V1"
     Table table
     GiteeApi giteeApi
-    List<Map<String, Object>> params
-    String description
+    public List<Map<String, Object>> parameters
+    public String projectDescription
     List<String> paramsDescription = []
     def script
     def scmVars
+    public String SSH_SECRET_KEY
+    public String GITEE_ACCESS_TOKEN_KEY
 
-    ManCI(script, boolean isCI = null, String CIName = null) {
+    ManCI(script, String CIName = null) {
         this.script = script
         this.CIName = CIName ?: (script.params.CIName ? script.env.CINAME : "ManCI")
     }
 
-    def setParams(List<Map<String, Object>> params = null) {
-        if (params == null) {
-            this.params = script.ManCIParams
-        } else {
-            this.params = params
-        }
+    def setParams() {
         List<Object> propertiesParams = []
-        this.params.each {
+        this.parameters.each {
             paramsDescription.add("* `${it.name}`: ${it.description}")
             if (it.type == "choice") {
                 propertiesParams.add(script.choice(name: it.name, description: it.description, choices: it.choices))
@@ -48,14 +45,6 @@ class ManCI {
             }
         }
         script.properties([script.parameters(propertiesParams)])
-    }
-
-    void setDescription(String description = null) {
-        if (description == null) {
-            this.description = script.ManCIProjectDescription
-        } else {
-            this.description = description
-        }
     }
 
     static getNowTime() {
@@ -90,21 +79,16 @@ class ManCI {
     }
 
     def withRun(String nodeLabels = null, Closure body) {
-        if (!this.description) {
-            setDescription()
-        }
-        if (!this.params) {
-            setParams()
-        }
         if ("${script.env.ref}" != "") {
             this.isCI = true
         }
+        script.echo "SSH_SECRET_KEY: ${SSH_SECRET_KEY}"
         script.node(nodeLabels) {
             script.stage("checkout") {
                 if (this.isCI){
                     script.echo "checkout: url ${script.env.giteeSourceRepoSshUrl}, branch: ${script.env.ref}"
                     script.checkout([$class: 'GitSCM', branches: [[name: script.env.ref]], extensions: [],
-                              userRemoteConfigs: [[credentialsId: script.SSH_SECRET_KEY,
+                              userRemoteConfigs: [[credentialsId: SSH_SECRET_KEY,
                                                    url: "${script.env.giteeSourceRepoSshUrl}"]]])
                 }else {
                     script.checkout script.scm
@@ -124,11 +108,10 @@ class ManCI {
                     stageNames.add(it.name as String)
                 }
             }
-            table = new Table(CIName, "", description + "\n<details>\n<summary>参数说明:</summary>\n\n" + paramsDescription.join("\n") + "\n</details>", stageNames)
-            script.withCredentials([script.string(credentialsId: script.GITEE_ACCESS_TOKEN_KEY, variable: "GITEE_ACCESS_TOKEN")]){
-                giteeApi = new GiteeApi(script.GITEE_ACCESS_TOKEN)
-                giteeApi.getCIComment(script.env.giteeSourceNamespace + '/' + script.env.giteeSourceRepoName, script.env.giteePullRequestIid, CIName)
-
+            table = new Table(CIName, "", projectDescription + "\n<details>\n<summary>参数说明:</summary>\n\n" + paramsDescription.join("\n") + "\n</details>", stageNames)
+            script.withCredentials([script.string(credentialsId: GITEE_ACCESS_TOKEN_KEY, variable: "GITEE_ACCESS_TOKEN")]){
+                String repoPath = script.env.giteeSourceNamespace + '/' + script.env.giteeSourceRepoName
+                giteeApi = new GiteeApi(GITEE_ACCESS_TOKEN, repoPath, script.env.giteePullRequestIid, CIName)
             }
 
             stages.each { group, v ->
@@ -153,12 +136,14 @@ class ManCI {
                         Integer runCnt = table.getStageRunTotal(it.name as String) + 1
                         if (buildResult == 0) {
                             table.addColumns([[it.name, group, table.SUCCESS_LABEL, elapsedTime, runCnt, nowTime, "", ""]])
+
                         } else if (buildResult == 1) {
                             table.addColumns([[it.name, group, table.FAILURE_LABEL, elapsedTime, runCnt, nowTime, "", ""]])
                         } else if (buildResult == 2) {
                             table.addColumns([[it.name, group, table.ABORTED_LABEL, elapsedTime, runCnt, nowTime, "", ""]])
                         }
                         script.echo table.text
+                        giteeApi.comment(table.text)
                     }
                 }
             }

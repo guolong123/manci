@@ -2,7 +2,7 @@
 
 manci = new ManCI(this)
 
-ManCIProjectDescription = """
+manci.projectDescription = """
 ## 使用小窍门
 * 可以点击状态图标进入构建日志界面
 * 评论`rebuild all`可以运行所有步骤
@@ -10,14 +10,13 @@ ManCIProjectDescription = """
 * 评论`rebuild`将以提交时默认行为进行构建
 """
 
-ManCIParams = [
+manci.parameters = [
         [defaultValue: "ManCI V1", description: 'CI的名称，显示在状态表格中', name: 'CIName', type: 'string'],
 ]
 
-SSH_SECRET_KEY = "ketabot-ssh-private"
+manci.SSH_SECRET_KEY = "ketabot-ssh-private"
 
-GITEE_ACCESS_TOKEN_KEY = 'ketabot-access-token'
-
+manci.GITEE_ACCESS_TOKEN_KEY = 'ketabot-access-token'
 
 manci.withRun(){
     sh 'env'
