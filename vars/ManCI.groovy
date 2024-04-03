@@ -49,9 +49,6 @@ class ManCI {
                 )
             }
         }
-        def allBranchs = script.sh(script: "git branch -a | grep -v 'remotes' |grep -v \\*| xargs echo", returnStdout: true).trim().split(" ")
-        propertiesParams.add(script.choice(name: "BRANCH_NAME", description: "Please select the branch to be deployed", choices: allBranchs))
-
         script.properties([script.parameters(propertiesParams)])
     }
 
@@ -73,10 +70,8 @@ class ManCI {
     }
 
     static String timestampConvert(timestamp) {
-        def ms = 0
-        def s = 0
-        def min = 0
-        ms = timestamp % 1000
+        Integer s = 0
+        Integer min = 0
         if (timestamp >= 1000) {
             s = (int) (timestamp / 1000) % 60
         }
@@ -110,13 +105,11 @@ class ManCI {
                 } else {
                     if (script.env.BRANCH_NAME) {
                         def gitUrl = scmVars.GIT_URL
-//                        def gitBranch = scmVars.GIT_BRANCH
                         script.checkout([$class           : 'GitSCM',
                                          branches         : [[name: script.env.BRANCH_NAME]], extensions: [],
                                          userRemoteConfigs: [[credentialsId: SSH_SECRET_KEY,
                                                               url          : gitUrl]]
                         ])
-
                     }
                 }
                 body.call()

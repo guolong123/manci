@@ -12,8 +12,7 @@ manci.projectDescription = """
 
 manci.parameters = [
         [defaultValue: "ManCI V1", description: 'CI的名称，显示在状态表格中', name: 'CIName', type: 'string'],
-        [defaultValue: "main", description: '检出时默认分支', name: 'BRANCH_NAME', type: 'string'],
-
+        [choices: ['main', 'develop'], description: '选择要部署的分支', name: 'BRANCH_NAME', type: 'choice']
 ]
 
 manci.SSH_SECRET_KEY = "3ee85ad2-4f01-40f3-930f-64fcd4f3fbfc"
