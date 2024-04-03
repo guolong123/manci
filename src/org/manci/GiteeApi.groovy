@@ -9,8 +9,10 @@ class GiteeApi {
     String CICommentTag
     String CICommentBody
     String CICommentUrl
+    def script
+    Logger logger
 
-    GiteeApi(String token=null, String repoPath, String pullRequestID, String CICommentTag) {
+    GiteeApi(script=null, String token=null, String repoPath, String pullRequestID, String CICommentTag) {
         if (token == null) {
             this.token = System.getenv("GITEE_TOKEN")
         } else {
@@ -19,9 +21,11 @@ class GiteeApi {
         this.repoPath = repoPath
         this.pullRequestID = pullRequestID
         this.CICommentTag = CICommentTag
+        this.script = script
+        logger = new Logger(script)
     }
 
-    def client = new HttpClient(baseUrl, token)
+    def client = new HttpClient(script, baseUrl, ["Authorization": "token ${token}"])
 
     def getRepo() {
         def url = "/api/v5/repos/${repoPath}"
@@ -33,12 +37,12 @@ class GiteeApi {
         def response = client.get(url)
         return response
     }
-    def getPullRequests(String repo) {
+    def getPullRequests() {
         def url = "/api/v5/repos/${repoPath}/pulls"
         def response = client.get(url)
         return response
     }
-    def getPullRequest(String repo, String number) {
+    def getPullRequest() {
         def url = "/api/v5/repos/${repoPath}/pulls/${pullRequestID}"
         def response = client.get(url)
         return response
@@ -46,7 +50,6 @@ class GiteeApi {
 
     def comment(String comment){
         def comments = getPullRequestComments()
-        def commentID = ""
         for (element in comments) {
             if (element.body.contains(CICommentTag)){
                 CICommentUrl = element.url
@@ -55,10 +58,11 @@ class GiteeApi {
                 break
             }
         }
-        if(! commentID){
+        if(! CICommentID){
             createPullRequestComment(comment)
+        }else{
+            updatePullRequestComment(comment)
         }
-
     }
 
     def getPullRequestComments() {
@@ -73,15 +77,15 @@ class GiteeApi {
     }
     def createPullRequestComment(String comment) {
         def url = "/api/v5/repos/${repoPath}/pulls/${pullRequestID}/comments"
-        def data = [
+        Map<String, String> data = [
             body: comment
         ]
         def response = client.post(url, data)
         return response
     }
     def updatePullRequestComment(String comment) {
-        def url = "/api/v5/repos/${repoPath}/pulls/${pullRequestID}/comments/${CICommentID}"
-        def data = [
+        def url = "/api/v5/repos/${repoPath}/pulls/comments/${CICommentID}"
+        Map<String, String> data = [
             body: comment
         ]
         def response = client.patch(url, data)

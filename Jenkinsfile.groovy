@@ -14,12 +14,11 @@ manci.parameters = [
         [defaultValue: "ManCI V1", description: 'CI的名称，显示在状态表格中', name: 'CIName', type: 'string'],
 ]
 
-manci.SSH_SECRET_KEY = "ketabot-ssh-private"
+manci.SSH_SECRET_KEY = "3ee85ad2-4f01-40f3-930f-64fcd4f3fbfc"
 
-manci.GITEE_ACCESS_TOKEN_KEY = 'ketabot-access-token'
+manci.GITEE_ACCESS_TOKEN_KEY = 'guolong-gitee-access-token'
 
 manci.withRun(){
-    sh 'env'
     // 同一个 group 下的 stage 会顺序执行，不同的 group 将会并发执行
     manci.stage("build", [group: "group1"]){
         echo "stage 1"
@@ -32,6 +31,6 @@ manci.withRun(){
         echo "hello world 3"
     }
     manci.stage("release", [group: "group3"]){
-        echo "hello world 3"
+        echo "exit 1"
     }
 }
