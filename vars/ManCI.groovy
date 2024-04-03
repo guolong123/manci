@@ -1,5 +1,6 @@
 import org.manci.Table
 import org.manci.GiteeApi
+import org.manci.Logger
 
 import java.text.SimpleDateFormat
 
@@ -8,6 +9,7 @@ class ManCI {
     boolean isCI = false
     public String CIName = "ManCI V1"
     Table table
+    Logger logger
     GiteeApi giteeApi
     public List<Map<String, Object>> parameters
     public String projectDescription
@@ -15,10 +17,14 @@ class ManCI {
     def script
     public String SSH_SECRET_KEY
     public String GITEE_ACCESS_TOKEN_KEY
+    String DEBUG
+
 
     ManCI(script, String CIName = null) {
         this.script = script
         this.CIName = CIName ?: (script.params.CIName ? script.env.CINAME : "ManCI")
+        this.logger = new Logger(script)
+
     }
 
     def setParams() {
@@ -39,7 +45,7 @@ class ManCI {
                 propertiesParams.add(script.file(name: it.name, description: it.description, defaultValue: it.defaultValue))
             } else if (it.type == "credentials") {
                 propertiesParams.add(script.credentials(name: it.name, description: it.description,
-                                defaultValue: it.defaultValue, credentialType: it.credentialType, required: it.required)
+                        defaultValue: it.defaultValue, credentialType: it.credentialType, required: it.required)
                 )
             }
         }
@@ -78,25 +84,41 @@ class ManCI {
     }
 
     def withRun(String nodeLabels = null, Closure body) {
-        script.echo "script.env.ref: ${script.env.ref}"
+        this.script.env.DEBUG = DEBUG
+
+        setParams()
+
+        logger.info "script.env.ref: ${script.env.ref}"
         if ("${script.env.ref}" != "null") {
             this.isCI = true
         }
-        script.echo "SSH_SECRET_KEY: ${SSH_SECRET_KEY}"
-        script.echo "isCI: ${this.isCI}"
+        logger.info "SSH_SECRET_KEY: ${SSH_SECRET_KEY}"
+        logger.info "isCI: ${this.isCI}"
         script.node(nodeLabels) {
             script.stage("checkout") {
-                script.checkout script.scm
-                if (this.isCI){
-                    script.echo "checkout: url ${script.env.giteeSourceRepoSshUrl}, branch: ${script.env.ref}"
-                    script.checkout([$class: 'GitSCM', branches: [[name: script.env.ref]], extensions: [],
+                script.sh 'env'
+                def scmVars = script.checkout script.scm
+                if (this.isCI) {
+                    logger.info "checkout: url ${script.env.giteeSourceRepoSshUrl}, branch: ${script.env.ref}"
+                    script.checkout([$class           : 'GitSCM', branches: [[name: script.env.ref]], extensions: [],
                                      userRemoteConfigs: [[credentialsId: SSH_SECRET_KEY,
-                                                          url: "${script.env.giteeSourceRepoSshUrl}"]]
+                                                          url          : "${script.env.giteeSourceRepoSshUrl}"]]
                     ])
+                } else {
+                    if (script.env.BRANCH_NAME) {
+                        def gitUrl = scmVars.GIT_URL
+//                        def gitBranch = scmVars.GIT_BRANCH
+                        script.checkout([$class           : 'GitSCM',
+                                         branches         : [[name: script.env.BRANCH_NAME]], extensions: [],
+                                         userRemoteConfigs: [[credentialsId: SSH_SECRET_KEY,
+                                                              url          : gitUrl]]
+                        ])
+
+                    }
                 }
+                body.call()
+                this.run()
             }
-            body.call()
-            this.run()
         }
     }
 
@@ -109,13 +131,14 @@ class ManCI {
                     stageNames.add(it.name as String)
                 }
             }
-            table = new Table(CIName, "", projectDescription + "\n<details>\n<summary>参数说明:</summary>\n\n" + paramsDescription.join("\n") + "\n</details>", stageNames)
-            script.withCredentials([script.string(credentialsId: GITEE_ACCESS_TOKEN_KEY, variable: "GITEE_ACCESS_TOKEN")]){
+            table = new Table(script, CIName, "", projectDescription + "\n<details>\n<summary>参数说明:</summary>\n\n" + paramsDescription.join("\n") + "\n</details>", stageNames)
+            script.withCredentials([script.string(credentialsId: GITEE_ACCESS_TOKEN_KEY, variable: "GITEE_ACCESS_TOKEN")]) {
                 String repoPath = script.env.giteeSourceNamespace + '/' + script.env.giteeSourceRepoName
-                script.echo "script.env.GITEE_ACCESS_TOKEN: ${script.env.GITEE_ACCESS_TOKEN}"
-                giteeApi = new GiteeApi(script,"${script.env.GITEE_ACCESS_TOKEN}", repoPath, script.env.giteePullRequestIid, CIName)
+                logger.info "script.env.GITEE_ACCESS_TOKEN: ${script.env.GITEE_ACCESS_TOKEN}"
+                giteeApi = new GiteeApi(script, "${script.env.GITEE_ACCESS_TOKEN}", repoPath, script.env.giteePullRequestIid, CIName)
             }
-            giteeApi.comment(table.text)
+            table.text = giteeApi.initComment(table.text)
+            table.tableParse()  // 从已有的评论中解析出table
             stages.each { group, v ->
                 parallelStage[group] = {
                     v.each {
@@ -159,6 +182,6 @@ class ManCI {
             }
         }
         script.parallel parallelStage
-        script.echo "ManCI Finished"
+        logger.info "ManCI Finished"
     }
 }

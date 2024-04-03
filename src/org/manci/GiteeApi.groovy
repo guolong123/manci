@@ -48,7 +48,7 @@ class GiteeApi {
         return response
     }
 
-    def comment(String comment){
+    String initComment(String comment){
         def comments = getPullRequestComments()
         for (element in comments) {
             if (element.body.contains(CICommentTag)){
@@ -60,22 +60,42 @@ class GiteeApi {
         }
         if(! CICommentID){
             createPullRequestComment(comment)
-        }else{
-            updatePullRequestComment(comment)
+            CICommentBody = comment
         }
+        return CICommentBody
     }
 
-    def getPullRequestComments() {
+    String comment(String comment){
+        def comments = getPullRequestComments()
+        for (element in comments) {
+            if (element.body.contains(CICommentTag)){
+                CICommentUrl = element.url
+                CICommentBody = element.body
+                CICommentID = CICommentUrl.split("/")[-1]
+                break
+            }
+        }
+        if(! CICommentID){
+            createPullRequestComment(comment)
+            CICommentBody = comment
+        }else{
+            def resp = updatePullRequestComment(comment)
+            CICommentBody = resp.body
+        }
+        return CICommentBody
+    }
+
+    String getPullRequestComments() {
         def url = "/api/v5/repos/${repoPath}/pulls/${pullRequestID}/comments"
         def response = client.get(url)
         return response
     }
-    def getPullRequestComment() {
+    String getPullRequestComment() {
         def url = "/api/v5/repos/${repoPath}/pulls/${pullRequestID}/comments/${CICommentID}"
         def response = client.get(url)
         return response
     }
-    def createPullRequestComment(String comment) {
+    String createPullRequestComment(String comment) {
         def url = "/api/v5/repos/${repoPath}/pulls/${pullRequestID}/comments"
         Map<String, String> data = [
             body: comment
@@ -83,7 +103,7 @@ class GiteeApi {
         def response = client.post(url, data)
         return response
     }
-    def updatePullRequestComment(String comment) {
+    String updatePullRequestComment(String comment) {
         def url = "/api/v5/repos/${repoPath}/pulls/comments/${CICommentID}"
         Map<String, String> data = [
             body: comment
@@ -91,7 +111,7 @@ class GiteeApi {
         def response = client.patch(url, data)
         return response
     }
-    def deletePullRequestComment() {
+    String deletePullRequestComment() {
         def url = "/api/v5/repos/${repoPath}/pulls/${pullRequestID}/comments/${CICommentID}"
         def response = client.delete(url)
         return response

@@ -12,17 +12,21 @@ manci.projectDescription = """
 
 manci.parameters = [
         [defaultValue: "ManCI V1", description: 'CI的名称，显示在状态表格中', name: 'CIName', type: 'string'],
+        [defaultValue: "main", description: '检出时默认分支', name: 'BRANCH_NAME', type: 'string'],
+
 ]
 
 manci.SSH_SECRET_KEY = "3ee85ad2-4f01-40f3-930f-64fcd4f3fbfc"
 
 manci.GITEE_ACCESS_TOKEN_KEY = 'guolong-gitee-access-token'
 
+manci.DEBUG = "true"
+
 manci.withRun(){
     // 同一个 group 下的 stage 会顺序执行，不同的 group 将会并发执行
     manci.stage("build", [group: "group1"]){
         echo "stage 1"
-        sh "echo stage 1-1"
+        sh "git branch"
     }
     manci.stage("deploy", [group: "group2"]){
         echo "hello world 2"

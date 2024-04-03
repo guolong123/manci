@@ -17,10 +17,15 @@ class Table {
 
     Map<String, List<String>> table
 
-    Table(String tableTag = "", String commentBody = "", String commentInfo = "", List<String> stageList = []) {
+    def script
+    Logger logger
+
+    Table(script, String tableTag = "", String commentBody = "", String commentInfo = "", List<String> stageList = []) {
         if (tableTag) {
             this.tableTag = tableTag
         }
+        this.script = script
+        logger = new Logger(script)
         this.commentBody = commentBody
         this.commentInfo = commentInfo
         if (commentInfo) {
@@ -28,8 +33,8 @@ class Table {
         }
         if (this.commentBody) {
             // this.log.debug("commentBody: ${commentBody}")
-            this.table = tableParse(this.commentBody)
-            this.text = tableCreate(tableHeader, commentInfo, this.table)
+            tableParse()
+            tableCreate()
         } else {
             // this.log.debug("stageList: ${stageList}")
             def columnList = []
@@ -37,7 +42,7 @@ class Table {
                 columnList.add([col, "", WAITING_LABEL, "", "", "0", "", ""])
             }
             this.table = ["header": this.tableHeader, "columns": columnList]
-            this.text = tableCreate(tableTag, commentInfo, this.table)
+            tableCreate()
         }
     }
 
@@ -56,7 +61,7 @@ class Table {
                 }
             }
         }
-        this.text = tableCreate(tableTag, commentInfo, this.table)
+        this.text = tableCreate()
     }
 
     def getStageRunTotal(String stageName) {
@@ -71,7 +76,7 @@ class Table {
             num = runTotal.toInteger()
 
         } catch (Exception e) {
-            println "无法将字符串转换为数字：$e.message"
+            logger.info"无法将字符串 ${runTotal} 转换为数字：$e.message"
         }
         return num
     }
@@ -87,7 +92,7 @@ class Table {
     }
 
     @NonCPS
-    static tableParse(String text) {
+    String  tableParse() {
         /* 该方法解析表格为格式化数据
            例如：
            """
@@ -118,13 +123,11 @@ class Table {
         def header = headerLine.split(' \\| ')[1..-1].collect { it.trim() }
         // 提取表格数据
         def rows = tableLines[2..-1].collect { it.split(' \\| ')[1..-1].collect { it.trim().replace("\\", "\\\\") } }
-
-        return [header: header, columns: rows] as Map<String, List<String>>
-
+        table = [header: header, columns: rows] as Map<String, List<String>>
     }
 
     @NonCPS
-    static tableCreate(tableTag, commentInfo, Map<String, Object> table) {
+    String tableCreate() {
         /*
         该方法将接收一个map，转换为markdown格式的表格字符串，map结构如下：
         {
@@ -147,8 +150,7 @@ class Table {
         columns.each { row ->
             tableStr += " | " + row.join(" | ") + " | \n"
         }
-        def text = "# " + tableTag + "\n\n" + tableStr + "\n\n" + commentInfo
+        text = "# " + tableTag + "\n\n" + tableStr + "\n\n" + commentInfo
         text = text.replace("\"", "\\\"")
-        return text
     }
 }
