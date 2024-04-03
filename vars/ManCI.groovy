@@ -49,6 +49,9 @@ class ManCI {
                 )
             }
         }
+        def allBranchs = script.sh(script: "git branch -a | grep -v 'remotes' |grep -v \\*| xargs echo", returnStdout: true).trim().split(" ")
+        propertiesParams.add(script.choice(name: "BRANCH_NAME", description: "Please select the branch to be deployed", choices: allBranchs))
+
         script.properties([script.parameters(propertiesParams)])
     }
 
