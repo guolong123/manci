@@ -1,58 +1,95 @@
 package org.manci
 
 class GiteeApi {
-    def baseUrl = "https://gitee.com"
-    def token = System.getenv("GITEE_TOKEN")
+    String  baseUrl = "https://gitee.com"
+    String token
+    String repoPath
+    String pullRequestID
+    String CICommentID
+    String CICommentTag
+    String CICommentBody
+    String CICommentUrl
+
+    GiteeApi(token=null, repoPath, pullRequestID, CICommentID=null, CICommentTag) {
+        if (token == null) {
+            this.token = System.getenv("GITEE_TOKEN")
+        } else {
+            this.token = token
+        }
+        this.repoPath = repoPath
+        this.pullRequestID = pullRequestID
+        this.CICommentID = CICommentID
+        this.CICommentTag = CICommentTag
+    }
+
     def client = new HttpClient(baseUrl, token)
 
-    def getRepo(String repo) {
-        def url = "/api/v5/repos/${repo}"
+    def getRepo() {
+        def url = "/api/v5/repos/${repoPath}"
         def response = client.get(url)
         return response
     }
-    def getRepoBranches(String repo) {
-        def url = "/api/v5/repos/${repo}/branches"
+    def getRepoBranches() {
+        def url = "/api/v5/repos/${repoPath}/branches"
         def response = client.get(url)
         return response
     }
     def getPullRequests(String repo) {
-        def url = "/api/v5/repos/${repo}/pulls"
+        def url = "/api/v5/repos/${repoPath}/pulls"
         def response = client.get(url)
         return response
     }
     def getPullRequest(String repo, String number) {
-        def url = "/api/v5/repos/${repo}/pulls/${number}"
+        def url = "/api/v5/repos/${repoPath}/pulls/${pullRequestID}"
         def response = client.get(url)
         return response
     }
-    def getPullRequestComments(String repo, String number) {
-        def url = "/api/v5/repos/${repo}/pulls/${number}/comments"
+
+    def comment(String comment){
+        def comments = getPullRequestComments()
+        def commentID = ""
+        for (element in comments) {
+            if (element.body.contains(CICommentTag)){
+                CICommentUrl = element.url
+                CICommentBody = element.body
+                CICommentID = CICommentUrl.split("/")[-1]
+                break
+            }
+        }
+        if(! commentID){
+            createPullRequestComment(comment)
+        }
+
+    }
+
+    def getPullRequestComments() {
+        def url = "/api/v5/repos/${repoPath}/pulls/${pullRequestID}/comments"
         def response = client.get(url)
         return response
     }
-    def getPullRequestComment(String repo, String number, String id) {
-        def url = "/api/v5/repos/${repo}/pulls/${number}/comments/${id}"
+    def getPullRequestComment() {
+        def url = "/api/v5/repos/${repoPath}/pulls/${pullRequestID}/comments/${CICommentID}"
         def response = client.get(url)
         return response
     }
-    def createPullRequestComment(String repo, String number, String body) {
-        def url = "/api/v5/repos/${repo}/pulls/${number}/comments"
+    def createPullRequestComment(String comment) {
+        def url = "/api/v5/repos/${repoPath}/pulls/${pullRequestID}/comments"
         def data = [
-            body: body
+            body: comment
         ]
         def response = client.post(url, data)
         return response
     }
-    def updatePullRequestComment(String repo, String number, String id, String body) {
-        def url = "/api/v5/repos/${repo}/pulls/${number}/comments/${id}"
+    def updatePullRequestComment(String comment) {
+        def url = "/api/v5/repos/${repoPath}/pulls/${pullRequestID}/comments/${CICommentID}"
         def data = [
-            body: body
+            body: comment
         ]
         def response = client.patch(url, data)
         return response
     }
-    def deletePullRequestComment(String repo, String number, String id) {
-        def url = "/api/v5/repos/${repo}/pulls/${number}/comments/${id}"
+    def deletePullRequestComment() {
+        def url = "/api/v5/repos/${repoPath}/pulls/${pullRequestID}/comments/${CICommentID}"
         def response = client.delete(url)
         return response
     }

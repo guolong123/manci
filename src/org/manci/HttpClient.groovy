@@ -1,5 +1,6 @@
 package org.manci
-
+@Grab('org.codehaus.groovy:groovy-json:3.0.21')
+@Grab('org.codehaus.groovy.modules.http-builder:http-builder:0.7.1')
 import groovy.json.JsonSlurper
 import groovyx.net.http.HTTPBuilder
 import groovyx.net.http.ContentType

@@ -1,4 +1,5 @@
 import org.manci.Table
+import org.manci.GiteeApi
 
 import java.text.SimpleDateFormat
 
@@ -7,18 +8,16 @@ class ManCI {
     boolean isCI = false
     String CIName = "ManCI V1"
     Table table
+    GiteeApi giteeApi
     List<Map<String, Object>> params
     String description
     List<String> paramsDescription = []
     def script
+    def scmVars
 
     ManCI(script, boolean isCI = null, String CIName = null) {
         this.script = script
-        this.isCI = isCI ?: (script.params.CI ? script.env.CI : false)
         this.CIName = CIName ?: (script.params.CIName ? script.env.CINAME : "ManCI")
-
-        script.echo "ManCI: ${this.isCI}"
-
     }
 
     def setParams(List<Map<String, Object>> params = null) {
@@ -97,10 +96,23 @@ class ManCI {
         if (!this.params) {
             setParams()
         }
-        script.node(nodeLabels) {
-            body.call()
+        if ("${script.env.ref}" != "") {
+            this.isCI = true
         }
-        run()
+        script.node(nodeLabels) {
+            script.stage("checkout") {
+                if (this.isCI){
+                    script.echo "checkout: url ${script.env.giteeSourceRepoSshUrl}, branch: ${script.env.ref}"
+                    script.checkout([$class: 'GitSCM', branches: [[name: script.env.ref]], extensions: [],
+                              userRemoteConfigs: [[credentialsId: script.SSH_SECRET_KEY,
+                                                   url: "${script.env.giteeSourceRepoSshUrl}"]]])
+                }else {
+                    script.checkout script.scm
+                }
+            }
+            body.call()
+            this.run()
+        }
     }
 
     def run() {
@@ -113,6 +125,12 @@ class ManCI {
                 }
             }
             table = new Table(CIName, "", description + "\n<details>\n<summary>参数说明:</summary>\n\n" + paramsDescription.join("\n") + "\n</details>", stageNames)
+            script.withCredentials([script.string(credentialsId: script.GITEE_ACCESS_TOKEN_KEY, variable: "GITEE_ACCESS_TOKEN")]){
+                giteeApi = new GiteeApi(script.GITEE_ACCESS_TOKEN)
+                giteeApi.getCIComment(script.env.giteeSourceNamespace + '/' + script.env.giteeSourceRepoName, script.env.giteePullRequestIid, CIName)
+
+            }
+
             stages.each { group, v ->
                 parallelStage[group] = {
                     v.each {
