@@ -46,8 +46,6 @@ class Table {
         }
     }
 
-
-
     def addColumns(List<List<String>> columnList) {
         columnList.eachWithIndex { row, rowIndex ->
             this.table.columns.eachWithIndex { t, tIndex ->
@@ -76,7 +74,7 @@ class Table {
             num = runTotal.toInteger()
 
         } catch (Exception e) {
-            logger.info"无法将字符串 ${runTotal} 转换为数字：$e.message"
+            logger.info "无法将字符串 ${runTotal} 转换为数字：$e.message"
         }
         return num
     }
@@ -92,7 +90,7 @@ class Table {
             runTotalTime = runTotalTime.split("/")[-1]
 
         } catch (Exception e) {
-            logger.info"无法将字符串 ${runTotalTime} 转换为数字：$e.message"
+            logger.info "无法将字符串 ${runTotalTime} 转换为数字：$e.message"
         }
         return runTotalTime
     }
@@ -108,7 +106,7 @@ class Table {
     }
 
     @NonCPS
-    String  tableParse() {
+    String tableParse() {
         /* 该方法解析表格为格式化数据
            例如：
            """

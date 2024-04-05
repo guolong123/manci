@@ -56,12 +56,20 @@ class ManCI {
 
     def stage(String stageName, Map<String, Object> stageConfig, Closure body) {
         def groupName = stageConfig.get("group", "default")
+        def trigger = stageConfig.get("trigger", "always") // always, pr_merge, pr_open, pr_close, pr_push, pr_test_pass, pr_review_pass, env_match, file_match
+        Map<String, Object> envMatches = stageConfig.get("envMatches", [:]) as Map<String, Object>
+        String fileMatches = stageConfig.get("fileMatches", "") as String
+        List<String> noteMatches = stageConfig.get("noteMatches", []) as List<String>
         if (!stages.containsKey(groupName)) {
-            stages[groupName] = []
+            stages[groupName as String] = []
         }
         stages[groupName].add([
                 "name": stageName,
-                "body": body
+                "trigger": trigger,
+                "body": body,
+                "envMatches": envMatches,
+                "fileMatches": fileMatches,
+                "noteMatches": noteMatches,
         ])
     }
 
@@ -122,6 +130,15 @@ class ManCI {
             stages.each { group, v ->
                 parallelStage[group] = {
                     v.each {
+                        List<String> failureStages = table.getFailureStages()
+                        if (! utils.needRunStage(it.name as String, "gitee", it.trigger as List<String>,
+                                it.envMatches as Map<String, Object>, it.fileMatches as String,
+                                it.noteMatches as List<String>, failureStages as List<String>)){
+                            script.stage(it.name) {
+                                script.echo "skip stage: ${it.name}"
+                            }
+                            return
+                        }
                         def startTime = System.currentTimeMillis()
                         Integer buildResult // 0: success, 1: failure, 2: aborted
                         try {

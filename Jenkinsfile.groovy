@@ -23,18 +23,18 @@ manci.DEBUG = "true"
 
 manci.withRun(){
     // 同一个 group 下的 stage 会顺序执行，不同的 group 将会并发执行
-    manci.stage("build", [group: "group1"]){
+    manci.stage("build", [group: "group1", trigger: ["pr_note"], noteMatches: ["rebuild all", "rebuild failure", "rebuild"] ]){
         echo "stage 1"
         sh "sleep 1"
     }
-    manci.stage("deploy", [group: "group2"]){
+    manci.stage("deploy", [group: "group2", trigger: ["pr_merge"], fileMatches: "Jenkinsfile.groovy"]){
         echo "hello world 2"
         sh 'sleep 3'
     }
-    manci.stage("test", [group: "group3"]){
+    manci.stage("test", [group: "group3", trigger: ["pr_push"], fileMatches: '.*']){
         echo "hello world 3"
     }
-    manci.stage("release", [group: "group3"]){
+    manci.stage("release", [group: "group3", trigger: ["env_match"],envMatches: ["BRANCH_NAME": "main"]]){
         echo "exit 1"
     }
 }
