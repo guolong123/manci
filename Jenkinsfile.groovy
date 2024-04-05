@@ -25,10 +25,11 @@ manci.withRun(){
     // 同一个 group 下的 stage 会顺序执行，不同的 group 将会并发执行
     manci.stage("build", [group: "group1"]){
         echo "stage 1"
-        sh "git branch"
+        sh "sleep 1"
     }
     manci.stage("deploy", [group: "group2"]){
         echo "hello world 2"
+        sh 'sleep 3'
     }
     manci.stage("test", [group: "group3"]){
         echo "hello world 3"

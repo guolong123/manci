@@ -1,8 +1,8 @@
 import org.manci.Table
 import org.manci.GiteeApi
 import org.manci.Logger
+import org.manci.Utils
 
-import java.text.SimpleDateFormat
 
 class ManCI {
     Map<String, List<Map<String, Object>>> stages = [:]
@@ -18,12 +18,14 @@ class ManCI {
     public String SSH_SECRET_KEY
     public String GITEE_ACCESS_TOKEN_KEY
     String DEBUG
+    Utils utils
 
 
     ManCI(script, String CIName = null) {
         this.script = script
         this.CIName = CIName ?: (script.params.CIName ? script.env.CINAME : "ManCI")
         this.logger = new Logger(script)
+        this.utils = new Utils(script)
 
     }
 
@@ -52,12 +54,6 @@ class ManCI {
         script.properties([script.parameters(propertiesParams)])
     }
 
-    static getNowTime() {
-        def now = new Date()
-        def formatter = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss")
-        return formatter.format(now)
-    }
-
     def stage(String stageName, Map<String, Object> stageConfig, Closure body) {
         def groupName = stageConfig.get("group", "default")
         if (!stages.containsKey(groupName)) {
@@ -67,18 +63,6 @@ class ManCI {
                 "name": stageName,
                 "body": body
         ])
-    }
-
-    static String timestampConvert(timestamp) {
-        Integer s = 0
-        Integer min = 0
-        if (timestamp >= 1000) {
-            s = (int) (timestamp / 1000) % 60
-        }
-        if (timestamp >= 60000) {
-            min = (int) (timestamp / 1000 / 60) % 60
-        }
-        return "${min}min${s}s" as String
     }
 
     def withRun(String nodeLabels = null, Closure body) {
@@ -152,9 +136,23 @@ class ManCI {
                         } catch (Exception ignored) {
                             buildResult = 1
                         }
-                        String elapsedTime = timestampConvert(System.currentTimeMillis() - startTime)
-                        def nowTime = getNowTime()
+                        long timeForOne = System.currentTimeMillis() - startTime
+                        String OneTime = utils.timestampConvert(timeForOne)
+                        def nowTime = utils.getNowTime()
                         Integer runCnt = table.getStageRunTotal(it.name as String) + 1
+                        String runTotalTimeStr
+                        long runTotalTime
+                        if (runCnt > 1){
+                            runTotalTimeStr = table.getStageRunTotalTime(it.name as String)
+                            runTotalTime = utils.reverseTimestampConvert(runTotalTimeStr) + timeForOne
+
+                        }else{
+                            runTotalTimeStr = OneTime
+                            runTotalTime = utils.reverseTimestampConvert(runTotalTimeStr)
+
+                        }
+                        String elapsedTime = utils.timestampConvert(timeForOne) + "/" + utils.timestampConvert(runTotalTime)
+
                         if (buildResult == 0) {
                             table.addColumns([[it.name, group, table.SUCCESS_LABEL, elapsedTime, runCnt, nowTime, "", ""]])
                         } else if (buildResult == 1) {

@@ -81,6 +81,22 @@ class Table {
         return num
     }
 
+    def getStageRunTotalTime(String stageName) {
+        String runTotalTime = "0h0min0s"
+        this.table.columns.each { t ->
+            if (t[0] == stageName) {
+                runTotalTime = t[3]
+            }
+        }
+        try {
+            runTotalTime = runTotalTime.split("/")[-1]
+
+        } catch (Exception e) {
+            logger.info"无法将字符串 ${runTotalTime} 转换为数字：$e.message"
+        }
+        return runTotalTime
+    }
+
     def getFailureStages() {
         def failureStages = []
         this.table.columns.each { t ->
