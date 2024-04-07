@@ -12,7 +12,7 @@ class Table {
     public static final RUNNING_LABEL = ":tw-1f552: running"
     public static final SUCCESS_LABEL = ":white_check_mark: success"
     public static final FAILURE_LABEL = ":x: failure"
-    public static final NOT_NEED_TUN_LABEL = ":white_large_square: skip"
+    public static final NOT_NEED_RUN_LABEL = ":white_large_square: skip"
     public static final ABORTED_LABEL = ":heavy_exclamation_mark: aborted"
 
     Map<String, List<String>> table
@@ -48,13 +48,14 @@ class Table {
 
     def addColumns(List<List<String>> columnList) {
         columnList.eachWithIndex { row, rowIndex ->
-            this.table.columns.eachWithIndex { t, tIndex ->
+            this.table.columns.eachWithIndex { t, i ->
                 if (row[0] == t[0]) {
-                    if ((row[1].contains(NOT_NEED_TUN_LABEL) || row[1].contains(WAITING_LABEL)) && !t[1].contains(WAITING_LABEL)) {
-                        // this.log.debug("stage ${row[0]} status does not need to be updated")
+                    logger.info("exist row: ${t[2]}")
+                    if ((row[2].contains(NOT_NEED_RUN_LABEL) || row[2].contains(WAITING_LABEL)) && !t[2].contains(WAITING_LABEL)) {
+                         logger.info("stage ${row[0]} status does not need to be updated")
                         return
                     } else {
-                        this.table.columns[tIndex] = row
+                        this.table.columns[i] = row
                     }
                 }
             }
@@ -136,7 +137,7 @@ class Table {
         def headerLine = tableLines[0]
         def header = headerLine.split(' \\| ')[1..-1].collect { it.trim() }
         // 提取表格数据
-        def rows = tableLines[2..-1].collect { it.split(' \\| ')[1..-1].collect { it.trim().replace("\\", "\\\\") } }
+        def rows = tableLines[2..-1].collect { it.split(' \\| ')[1..-1].collect { it.trim() } }
         table = [header: header, columns: rows] as Map<String, List<String>>
     }
 
@@ -165,6 +166,5 @@ class Table {
             tableStr += " | " + row.join(" | ") + " | \n"
         }
         text = "# " + tableTag + "\n\n" + tableStr + "\n\n" + commentInfo
-        text = text.replace("\"", "\\\"")
     }
 }

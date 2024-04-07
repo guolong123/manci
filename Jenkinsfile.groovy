@@ -23,18 +23,21 @@ manci.DEBUG = "true"
 
 manci.withRun(){
     // 同一个 group 下的 stage 会顺序执行，不同的 group 将会并发执行
-    manci.stage("build", [group: "group1", trigger: ["pr_note"], noteMatches: ["rebuild all", "rebuild failure", "rebuild"] ]){
+    manci.stage("pr_note", [group: "group1", trigger: ["pr_note"], fileMatches: "'.*'" ]){
         echo "stage 1"
         sh "sleep 1"
     }
-    manci.stage("deploy", [group: "group2", trigger: ["pr_merge"], fileMatches: "Jenkinsfile.groovy"]){
+    manci.stage("pr_merge", [group: "group2", trigger: ["pr_merge", "pr_note"], fileMatches: "'Jenkinsfile.groovy'"]){
         echo "hello world 2"
         sh 'sleep 3'
     }
-    manci.stage("test", [group: "group3", trigger: ["pr_push"], fileMatches: '.*']){
-        echo "hello world 3"
+    manci.stage("pr_push", [group: "group3", trigger: ["pr_push", "pr_note"], fileMatches: "'.*'"]){
+        sh "sleep 1"
     }
-    manci.stage("release", [group: "group3", trigger: ["env_match"],envMatches: ["BRANCH_NAME": "main"]]){
-        echo "exit 1"
+    manci.stage("env_match", [group: "group3", trigger: ["env_match"],envMatches: ["BRANCH_NAME": "main"]]){
+        sh "sleep 1"
+    }
+    manci.stage("pr_close", [group: "group3", trigger: ["pr_close"]]){
+        sh "sleep 1"
     }
 }

@@ -130,54 +130,102 @@ class ManCI {
             stages.each { group, v ->
                 parallelStage[group] = {
                     v.each {
+                        String runStrategy = ""
+                        it.noteMatches.add("rebuild")
+                        it.noteMatches.add("rebuild ${it.name}")
+                        it.trigger.each {tg ->
+                            if (tg == "pr_note"){
+                                runStrategy += "[:fa-pencil:](#note_${giteeApi.CICommentID} \"该Stage可通过评论${it.noteMatches.collect { it.replace('|', '\\\\|') }}触发\") "
+                            }
+                            if (tg == "pr_push"){
+                                runStrategy += "[:fa-paypal:](#note_${giteeApi.CICommentID} \"该Stage可在推送代码匹配正则${it.fileMatches.replace('\\|', '\\\\|')}时自动触发\") "
+                            }
+                            if (tg == "pr_merge"){
+                                runStrategy += "[:fa-maxcdn:](#note_${giteeApi.CICommentID} \"该Stage可在合并代码匹配正则${it.fileMatches.replace('\\|', '\\\\|')}时自动触发\") "
+                            }
+                            if (tg == "env_match"){
+                                runStrategy += "[:fa-th:](#note_${giteeApi.CICommentID} \"该Stage可在环境变量匹配时触发: ${it.envMatches}\") "
+                            }
+                            if (tg == "always"){
+                                runStrategy += "[:fa-font:](#note_${giteeApi.CICommentID} \"该Stage无论如何都会触发\") "
+                            }
+                            if (tg == "pr_open"){
+                                runStrategy += "[:fa-toggle-on:](#note_${giteeApi.CICommentID} \"该Stage会在 PR 打开时触发(不包括 reopen)\") "
+                            }
+                            if (tg == "pr_close"){
+                                runStrategy += "[:fa-times-circle:](#note_${giteeApi.CICommentID} \"该Stage会在 PR 关闭时触发\") "
+                            }
+                            if (tg == "pr_tested"){
+                                runStrategy += "[:fa-check:](#note_${giteeApi.CICommentID} \"该Stage会在 PR 测试通过时触发\") "
+                            }
+                            if (tg == "pr_approved"){
+                                runStrategy += "[:fa-eye:](#note_${giteeApi.CICommentID} \"该Stage会在 PR 审核通过时触发\") "
+                            }
+                        }
+                        String elapsedTime = ""
+                        String nowTime = ""
+                        Integer runCnt = 0
+                        Integer buildResult // 0: success, 1: failure, 2: aborted, 3: skip
                         List<String> failureStages = table.getFailureStages()
+                        long startTime = System.currentTimeMillis()
                         if (! utils.needRunStage(it.name as String, "gitee", it.trigger as List<String>,
                                 it.envMatches as Map<String, Object>, it.fileMatches as String,
                                 it.noteMatches as List<String>, failureStages as List<String>)){
                             script.stage(it.name) {
                                 script.echo "skip stage: ${it.name}"
                             }
-                            return
-                        }
-                        def startTime = System.currentTimeMillis()
-                        Integer buildResult // 0: success, 1: failure, 2: aborted
-                        try {
-                            script.stage(it.name) {
-                                it.body.call()
-                            }
-                            buildResult = 0
-                        } catch (org.jenkinsci.plugins.workflow.steps.FlowInterruptedException ignored) {
-                            buildResult = 2
-                        } catch (InterruptedException ignored) {
-                            buildResult = 2
-                        } catch (Exception ignored) {
-                            buildResult = 1
-                        }
-                        long timeForOne = System.currentTimeMillis() - startTime
-                        String OneTime = utils.timestampConvert(timeForOne)
-                        def nowTime = utils.getNowTime()
-                        Integer runCnt = table.getStageRunTotal(it.name as String) + 1
-                        String runTotalTimeStr
-                        long runTotalTime
-                        if (runCnt > 1){
-                            runTotalTimeStr = table.getStageRunTotalTime(it.name as String)
-                            runTotalTime = utils.reverseTimestampConvert(runTotalTimeStr) + timeForOne
+                            buildResult = 3
 
                         }else{
-                            runTotalTimeStr = OneTime
-                            runTotalTime = utils.reverseTimestampConvert(runTotalTimeStr)
+                            logger.debug("needRunStage: ${it.name}")
+                            try {
+                                script.stage(it.name) {
+                                    logger.debug("stage: ${it.name}")
+                                    it.body.call()
+                                    logger.debug("stage: ${it.name} done")
+                                }
+                                buildResult = 0
+                                logger.debug("buildResult: ${buildResult}")
+                            } catch (org.jenkinsci.plugins.workflow.steps.FlowInterruptedException e) {
+                                logger.error("${e}")
+                                buildResult = 2
+                            } catch (InterruptedException e) {
+                                logger.error("${e}")
+                                buildResult = 2
+                            } catch (Exception e) {
+                                logger.error("[${it.name}]: ${e}")
 
+                                buildResult = 1
+                            }
+                            long timeForOne = System.currentTimeMillis() - startTime
+                            String OneTime = utils.timestampConvert(timeForOne)
+                            nowTime = utils.getNowTime()
+                            runCnt = table.getStageRunTotal(it.name as String) + 1
+                            String runTotalTimeStr
+                            long runTotalTime
+                            if (runCnt > 1){
+                                runTotalTimeStr = table.getStageRunTotalTime(it.name as String)
+                                runTotalTime = utils.reverseTimestampConvert(runTotalTimeStr) + timeForOne
+
+                            }else{
+                                runTotalTimeStr = OneTime
+                                runTotalTime = utils.reverseTimestampConvert(runTotalTimeStr)
+
+                            }
+                            elapsedTime = utils.timestampConvert(timeForOne) + "/" + utils.timestampConvert(runTotalTime)
                         }
-                        String elapsedTime = utils.timestampConvert(timeForOne) + "/" + utils.timestampConvert(runTotalTime)
 
                         if (buildResult == 0) {
-                            table.addColumns([[it.name, group, table.SUCCESS_LABEL, elapsedTime, runCnt, nowTime, "", ""]])
+                            table.addColumns([[it.name, group, table.SUCCESS_LABEL, elapsedTime, runCnt, nowTime, runStrategy, ""]])
                         } else if (buildResult == 1) {
-                            table.addColumns([[it.name, group, table.FAILURE_LABEL, elapsedTime, runCnt, nowTime, "", ""]])
+                            table.addColumns([[it.name, group, table.FAILURE_LABEL, elapsedTime, runCnt, nowTime, runStrategy, ""]])
                         } else if (buildResult == 2) {
-                            table.addColumns([[it.name, group, table.ABORTED_LABEL, elapsedTime, runCnt, nowTime, "", ""]])
+                            table.addColumns([[it.name, group, table.ABORTED_LABEL, elapsedTime, runCnt, nowTime, runStrategy, ""]])
+                        }else if (buildResult == 3) {
+                            table.addColumns([[it.name, group, table.NOT_NEED_RUN_LABEL, elapsedTime, runCnt, nowTime, runStrategy, ""]])
                         }
                         giteeApi.comment(table.text)
+                        logger.info(table.text)
                     }
                 }
             }

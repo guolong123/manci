@@ -2,7 +2,6 @@ package org.manci
 
 @Grab('org.codehaus.groovy:groovy-json:3.0.21')
 @Grab('org.codehaus.groovy.modules.http-builder:http-builder:0.7.1')
-import groovy.json.JsonSlurper
 import groovy.json.JsonOutput
 import groovyx.net.http.HTTPBuilder
 import groovyx.net.http.ContentType
@@ -13,6 +12,7 @@ class HttpClient {
     private final String token
     def script
     Logger logger
+    Utils utils
     def headers = ["Content-Type": "application/json;charset=UTF-8"]
 
     HttpClient(script, String baseUrl, Map<String ,String> headers = null) {
@@ -21,6 +21,7 @@ class HttpClient {
         this.headers.putAll(headers)
         this.script = script
         logger = new Logger(script)
+        utils = new Utils(script)
     }
 
     def post(String path, body = null, Map<String, String> customHeaders = [:]) {
@@ -67,7 +68,7 @@ class HttpClient {
                     } else if (json instanceof Map) {
                         responseBodyJson = json
                     } else if (json != null) {
-                        responseBodyJson = new JsonSlurper().parseText(json.toString())
+                        responseBodyJson = utils.jsonParse(json.toString())
                     } else {
                         responseBodyJson = null
                     }

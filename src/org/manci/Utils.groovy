@@ -1,7 +1,7 @@
 package org.manci
 
 import java.text.SimpleDateFormat
-import groovy.json.JsonSlurper
+import groovy.json.JsonSlurperClassic
 
 class Utils {
     def script
@@ -75,8 +75,14 @@ class Utils {
         return [flag: flag, args: args, kwargs: kwargs]
     }
 
+    @NonCPS
+    public static jsonParse(String json) {
+        return new groovy.json.JsonSlurperClassic().parseText(json)
+    }
+
     boolean eventHandlerMerge(String fileMatches = "", String commitNumber=null, String targetBranch = "", String sourceBranch = null) {
         if (! fileMatches){
+            logger.info("fileMatches is empty, skip eventHandlerMerge")
             return false
         }
         boolean needRun = false
@@ -84,8 +90,10 @@ class Utils {
         try{
             if(commitNumber){
                 // merge
+                logger.info("eventHandlerMerge: merge")
                 cnt = this.script.sh(script:"git diff --name-only ${targetBranch}@{${commitNumber}}...${targetBranch} | grep -c ${fileMatches} | xargs echo", returnStdout: true)
             }else {
+                logger.info("eventHandlerMerge: push")
                 cnt = this.script.sh(script:"git diff --name-only ${targetBranch}...${sourceBranch} | grep -c ${fileMatches} | xargs echo", returnStdout: true)
             }
         }catch(Exception e){
@@ -97,31 +105,42 @@ class Utils {
         return needRun
     }
 
-    boolean eventHandlerNote(String stageName,List<String> noteMatches = [],List<String> failureStages = [], String fileMatches = "") {
+    boolean eventHandlerNote(String stageName,List<String> noteMatches = [],List<String> failureStages = [], String fileMatches = "", String targetBranch=null, String sourceBranch = null) {
         boolean needRun = false
         Map<String, Object> commandParse = commandParse(this.script.env.noteBody as String)
-        if (rexContains(noteMatches, this.script.env.noteBody as String)) {
-            needRun = true
-        } else {
-            def stageNames = commandParse.get("args") as List<String>
-            def flag = commandParse.get("flag") as String
-            if (flag != "rebuild") {
-                return false
-            }
-            if (stageNames.size() == 0) {
-                // 当直接评论 rebuild时，会重新以代码提交的事件重新运行
-                needRun = eventHandlerMerge(fileMatches)
-            } else if (rexContains(noteMatches, this.script.env.noteBody)) {
-                // 当rebuild后面的名称与当前不一致，但runCommands参数中包含评论内容时
+
+        def stageNames = commandParse.get("args") as List<String>
+        noteMatches.add(stageName)
+        for (sn in stageNames){
+            if (stageName.contains(sn.strip())){
+                logger.info("eventHandlerNote: stageName contains ${sn}")
                 needRun = true
-            } else if (stageNames.contains("failure")) {
-                if (failureStages.contains(stageName)) {
-                    needRun = true
-                }
-            } else if (stageNames.contains("all")) {
-                needRun = true
+                return needRun
             }
         }
+        def flag = commandParse.get("flag") as String
+        if (flag != "rebuild") {
+            logger.info("eventHandlerNote: flag is not rebuild, skip eventHandlerNote")
+            return false
+        }
+        if (stageNames.size() == 0) {
+            // 当直接评论 rebuild时，会重新以代码提交的事件重新运行
+            logger.info("eventHandlerNote: stageNames is empty, fileMatches: ${fileMatches}, targetBranch: ${targetBranch}, stageName: ${stageName}")
+            needRun = eventHandlerMerge(fileMatches, null, targetBranch, sourceBranch)
+        } else if (rexContains(noteMatches, this.script.env.noteBody)) {
+            // 当rebuild后面的名称与当前不一致，但runCommands参数中包含评论内容时
+            logger.info("eventHandlerNote: stageNames contains note")
+            needRun = true
+        } else if (stageNames.contains("failure")) {
+            if (failureStages.contains(stageName)) {
+                logger.info("eventHandlerNote: stageNames contains failure")
+                needRun = true
+            }
+        } else if (stageNames.contains("all")) {
+            logger.info("eventHandlerNote: stageNames contains all")
+            needRun = true
+        }
+
         return needRun
     }
 
@@ -131,7 +150,7 @@ class Utils {
         Map<String, Object> condition = envMatches.get("condition") as Map<String, Object>
 
         // 检查condition是否为空，避免不必要的操作
-        if (condition.isEmpty()) {
+        if (! condition) {
             // 根据业务逻辑，这里可以记录日志，或者采取其他措施
             println("Condition is empty, skipping execution.")
             return needRun// 如果没有必要继续执行，可以提前返回
@@ -162,8 +181,7 @@ class Utils {
                            String  fileMatches = "",
                            List<String> noteMatches = [], List<String> failureStages = []) {
         boolean needRun = false
-        JsonSlurper jsonSlurper = new JsonSlurper()
-        Map<String, Object> jsonBody = jsonSlurper.parseText(this.script.env.jsonbody)
+        Map<String, Object> jsonBody = jsonParse(this.script.env.jsonbody as String) as Map<String, Object>
         if (trigger.contains("always")){
             needRun = true
         }
@@ -172,41 +190,50 @@ class Utils {
                 def commitNumber = "${jsonBody.pull_request.commits}"
                 def targetBranch = "origin/${this.script.env.giteeTargetBranch}"
                 needRun = eventHandlerMerge(fileMatches, commitNumber, targetBranch, null)
+                logger.info("eventHandlerMerge: merge, commitNumber: ${commitNumber}, needRun: ${needRun}")
             }
         }
         if (trigger.contains("pr_push")){
-            if(this.script.env.giteeActionType == "MERGE"  && jsonBody.action == "push"){
+            if(this.script.env.giteeActionType == "MERGE"  && (jsonBody.action == "update" || jsonBody.action == "open")){
                 String targetBranch = "origin/${this.script.env.giteeTargetBranch}"
                 needRun = eventHandlerMerge(fileMatches, null, targetBranch, script.env.giteePullRequestLastCommit as String)
+                logger.info("eventHandlerMerge: push, needRun: ${needRun}")
             }
         }
         if (trigger.contains("pr_close")){
             if(this.script.env.giteeActionType == "MERGE"  && jsonBody.action == "close"){
                 needRun = true
+                logger.info("eventHandlerMerge: close, needRun: ${needRun}")
             }
         }
         if (trigger.contains("pr_open")){
             if(this.script.env.giteeActionType == "MERGE"  && jsonBody.action == "open"){
                 needRun = true
+                logger.info("eventHandlerMerge: open, needRun: ${needRun}")
             }
         }
         if (trigger.contains("pr_approved")){
             if(this.script.env.giteeActionType == "MERGE"  && jsonBody.action == "approved"){
                 needRun = true
+                logger.info("eventHandlerMerge: approved, needRun: ${needRun}")
             }
         }
         if (trigger.contains("pr_tested")){
             if(this.script.env.giteeActionType == "MERGE"  && jsonBody.action == "tested"){
                 needRun = true
+                logger.info("eventHandlerMerge: tested, needRun: ${needRun}")
             }
         }
         if (trigger.contains("pr_note")){
             if(this.script.env.giteeActionType == "NOTE"  && jsonBody.action == "comment"){
-                needRun = eventHandlerNote(stageName, noteMatches, failureStages, fileMatches)
+                String targetBranch = "origin/${this.script.env.giteeTargetBranch}"
+                needRun = eventHandlerNote(stageName, noteMatches, failureStages, fileMatches, targetBranch, script.env.giteePullRequestLastCommit as String)
+                logger.info("eventHandlerNote: note, needRun: ${needRun}")
             }
         }
         if (trigger.contains("env_match")) {
             needRun = eventHandlerEnv(envMatches)
+            logger.info("eventHandlerEnv: env_match, needRun: ${needRun}")
         }
         return needRun
 
