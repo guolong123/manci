@@ -76,8 +76,16 @@ class Utils {
     }
 
     @NonCPS
-    public static jsonParse(String json) {
-        return new groovy.json.JsonSlurperClassic().parseText(json)
+    public LinkedHashMap<String, Object> jsonParse(String json) {
+        // 使用JsonSlurperClassic解析JSON字符串
+        def parsedJson = new groovy.json.JsonSlurperClassic().parseText(json)
+        logger.debug("jsonParseType: ${parsedJson.getClass()}")
+
+        if(parsedJson instanceof groovy.json.internal.LazyMap) {
+            return new LinkedHashMap<>(parsedJson as Map<? extends String, ?>)
+        }
+        def linkedJson = new LinkedHashMap<>(parsedJson)
+        return linkedJson as LinkedHashMap<String, Object>
     }
 
     boolean eventHandlerMerge(String fileMatches = "", String commitNumber=null, String targetBranch = "", String sourceBranch = null) {

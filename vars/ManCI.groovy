@@ -112,6 +112,7 @@ class ManCI {
 
     def run() {
         Map<String, Closure> parallelStage = [:] as Map<String, Closure>
+        Exception error = null
         if (isCI) {
             List<String> stageNames = [] as List<String>
             stages.each {
@@ -127,9 +128,9 @@ class ManCI {
             }
             table.text = giteeApi.initComment(table.text)
             table.tableParse()  // 从已有的评论中解析出table
-            stages.each { group, v ->
+            stages.each { group, st ->
                 parallelStage[group] = {
-                    v.each {
+                    st.each {
                         String runStrategy = ""
                         it.noteMatches.add("rebuild")
                         it.noteMatches.add("rebuild ${it.name}")
@@ -168,9 +169,10 @@ class ManCI {
                         Integer buildResult // 0: success, 1: failure, 2: aborted, 3: skip
                         List<String> failureStages = table.getFailureStages()
                         long startTime = System.currentTimeMillis()
-                        if (! utils.needRunStage(it.name as String, "gitee", it.trigger as List<String>,
+                        def needRun = utils.needRunStage(it.name as String, "gitee", it.trigger as List<String>,
                                 it.envMatches as Map<String, Object>, it.fileMatches as String,
-                                it.noteMatches as List<String>, failureStages as List<String>)){
+                                it.noteMatches as List<String>, failureStages as List<String>)
+                        if(!needRun){
                             script.stage(it.name) {
                                 script.echo "skip stage: ${it.name}"
                             }
@@ -187,15 +189,21 @@ class ManCI {
                                 buildResult = 0
                                 logger.debug("buildResult: ${buildResult}")
                             } catch (org.jenkinsci.plugins.workflow.steps.FlowInterruptedException e) {
-                                logger.error("${e}")
-                                buildResult = 2
-                            } catch (InterruptedException e) {
-                                logger.error("${e}")
-                                buildResult = 2
-                            } catch (Exception e) {
                                 logger.error("[${it.name}]: ${e}")
-
+                                buildResult = 2
+                                error = e as Exception
+                            } catch (InterruptedException e) {
+                                logger.error("[${it.name}]: ${e}")
+                                buildResult = 2
+                                error = e as Exception
+                            } catch (NotSerializableException e) {
+                                logger.error("[${it.name}]: ${e}")
+                                buildResult = 0
+                                error = e as Exception
+                            } catch (Exception e){
+                                logger.error("[${it.name}]: ${e}")
                                 buildResult = 1
+                                error = e as Exception
                             }
                             long timeForOne = System.currentTimeMillis() - startTime
                             String OneTime = utils.timestampConvert(timeForOne)
@@ -241,6 +249,9 @@ class ManCI {
             }
         }
         script.parallel parallelStage
+        if (error){
+            throw error
+        }
         logger.info "ManCI Finished"
     }
 }
