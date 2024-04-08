@@ -76,8 +76,7 @@ class Utils {
     }
 
     @NonCPS
-    public LinkedHashMap<String, Object> jsonParse(String json) {
-        // 使用JsonSlurperClassic解析JSON字符串
+    LinkedHashMap<String, Object> jsonParse(String json) {
         def parsedJson = new groovy.json.JsonSlurperClassic().parseText(json)
         logger.debug("jsonParseType: ${parsedJson.getClass()}")
 
@@ -88,7 +87,7 @@ class Utils {
         return linkedJson as LinkedHashMap<String, Object>
     }
 
-    public static String getStageTrigger(List<String> trigger, GiteeApi giteeApi, Map<String, Object> stage){
+    static String getStageTrigger(List<String> trigger, GiteeApi giteeApi, Map<String, Object> stage){
         String runStrategy = ""
 
         trigger.each {tg ->
@@ -132,10 +131,7 @@ class Utils {
         String cnt = "0"
         try{
             if(commitNumber){
-                // merge
                 logger.debug("eventHandlerMerge: merge")
-//                this.script.sh(script:"git fetch origin ${targetBranch}")
-                this.script.sh(script:"git log")
                 cnt = this.script.sh(script:"git diff --name-only ${targetBranch}@{${commitNumber}}...${targetBranch} | grep -c ${fileMatches} | xargs echo", returnStdout: true)
             }else {
                 logger.debug("eventHandlerMerge: push")
@@ -194,22 +190,21 @@ class Utils {
         String role = envMatches.get('role', 'and')
         Map<String, Object> condition = envMatches.get("condition") as Map<String, Object>
 
-        // 检查condition是否为空，避免不必要的操作
         if (! condition) {
             // 根据业务逻辑，这里可以记录日志，或者采取其他措施
-            println("Condition is empty, skipping execution.")
+            logger.debug("Condition is empty, skipping execution.")
             return needRun// 如果没有必要继续执行，可以提前返回
         }
 
-        // 对于role的处理，如果未来有更多逻辑，考虑使用switch-case进行优化
         boolean shouldRun = role == "and";
         condition.each { k, v ->
-            Object envValue = script.env.get(k)
+            Object envValue = script.env.getAt(k)
             if (envValue == null || envValue != v) {
+                logger.info("${envValue} == ${v}")
                 // 如果envValue为null，或者不等于v，则根据role决定是否终止检查
                 if (shouldRun) {
                     needRun = false
-                    return needRun// 结束each循环
+                    return needRun
                 }
             } else {
                 // 如果envValue等于v，根据role决定是否可以设置needRun为true
@@ -218,6 +213,19 @@ class Utils {
                     return needRun// 结束each循环
                 }
             }
+        }
+
+        return needRun
+    }
+
+    boolean needRunStageNotCI(Map<String, Object> stage){
+        // 非 CI 场景下仅支持环境变量匹配和 always 条件下的执行，其他 PR 相关的触发条件将不会触发
+        boolean needRun = false
+        if (stage.get("trigger").contains("env_match")){
+            needRun = eventHandlerEnv(stage.get("envMatches") as Map<String, Object>)
+        }
+        if (stage.get("trigger").contains("always")){
+            needRun = true
         }
         return needRun
     }

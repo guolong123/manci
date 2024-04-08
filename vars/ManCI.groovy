@@ -219,8 +219,12 @@ class ManCI {
             stages.each { k, v ->
                 parallelStage[k] = {
                     v.each {
+                        def needRun = utils.needRunStageNotCI(it)
                         script.stage(it.name) {
-                            it.body.call()
+                            if (needRun){
+                                it.body.call()
+                            }
+
                         }
                     }
                 }

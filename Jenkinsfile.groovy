@@ -32,7 +32,7 @@ manci.withRun(){
     manci.stage("pr_push", [group: "group3", trigger: ["pr_push", "pr_note"], fileMatches: "'.*'"]){
         sh 'sleep 3'
     }
-    manci.stage("env_match", [group: "group3", trigger: ["env_match"],envMatches: ["BRANCH_NAME": "main"]]){
+    manci.stage("env_match", [group: "group3", trigger: ["env_match"],envMatches: [role: "and", condition: ["BRANCH_NAME": "main"]]]){
         sh 'sleep 6'
     }
     manci.stage("pr_close", [group: "group3", trigger: ["pr_close"]]){
