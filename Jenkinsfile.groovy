@@ -28,16 +28,20 @@ manci.withRun(){
     manci.stage("PR_TITLE_CHECK", [group: "check", trigger: ["pr_note", "pr_open"], mark: "[访问地址](#)" ]){
         def matcher = (env.giteePullRequestTitle ==~ PR_TITLE_CHECK_REX)
         if (matcher != true){
-            throw new Exception("PR提交不规范, 内容: ${text}")
+            throw new Exception("PR提交不规范, 内容: ${giteePullRequestTitle}")
+        }else {
+            echo "PR提交符合规范"
         }
     }
 
     manci.stage("PR_COMMIT_CHECK",[group: "check", trigger: ["pr_note", "pr_open"], mark: "[访问地址](#)" ]){
-        commits = sh(script:"git log --left-right --format=%s origin/${env.afterMergePRCommit}...${env.ref}",returnStdout: true)
+        commits = sh(script:"git log --left-right --format=%s origin/${env.giteeTargetBranch}...${env.ref}",returnStdout: true)
         echo "commits: ${commits}"
         def matcher = (env.giteePullRequestTitle ==~ PR_TITLE_CHECK_REX)
         if (matcher != true){
-            throw new Exception("commit message 提交不规范, 内容: ${text}")
+            throw new Exception("commit message 提交不规范, 内容: ${commits}")
+        } else{
+            echo "commit message 符合规范"
         }
     }
 
