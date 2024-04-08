@@ -60,6 +60,7 @@ class ManCI {
         Map<String, Object> envMatches = stageConfig.get("envMatches", [:]) as Map<String, Object>
         String fileMatches = stageConfig.get("fileMatches", "") as String
         List<String> noteMatches = stageConfig.get("noteMatches", []) as List<String>
+        String mark = stageConfig.get("mark", "") as String
         if (!stages.containsKey(groupName)) {
             stages[groupName as String] = []
         }
@@ -70,6 +71,7 @@ class ManCI {
                 "envMatches": envMatches,
                 "fileMatches": fileMatches,
                 "noteMatches": noteMatches,
+                "mark": mark
         ])
     }
 
@@ -131,38 +133,9 @@ class ManCI {
             stages.each { group, st ->
                 parallelStage[group] = {
                     st.each {
-                        String runStrategy = ""
                         it.noteMatches.add("rebuild")
                         it.noteMatches.add("rebuild ${it.name}")
-                        it.trigger.each {tg ->
-                            if (tg == "pr_note"){
-                                runStrategy += "[:fa-pencil:](#note_${giteeApi.CICommentID} \"该Stage可通过评论${it.noteMatches.collect { it.replace('|', '\\\\|') }}触发\") "
-                            }
-                            if (tg == "pr_push"){
-                                runStrategy += "[:fa-paypal:](#note_${giteeApi.CICommentID} \"该Stage可在推送代码匹配正则${it.fileMatches.replace('\\|', '\\\\|')}时自动触发\") "
-                            }
-                            if (tg == "pr_merge"){
-                                runStrategy += "[:fa-maxcdn:](#note_${giteeApi.CICommentID} \"该Stage可在合并代码匹配正则${it.fileMatches.replace('\\|', '\\\\|')}时自动触发\") "
-                            }
-                            if (tg == "env_match"){
-                                runStrategy += "[:fa-list:](#note_${giteeApi.CICommentID} \"该Stage可在环境变量匹配时触发: ${it.envMatches}\") "
-                            }
-                            if (tg == "always"){
-                                runStrategy += "[:fa-font:](#note_${giteeApi.CICommentID} \"该Stage无论如何都会触发\") "
-                            }
-                            if (tg == "pr_open"){
-                                runStrategy += "[:fa-toggle-on:](#note_${giteeApi.CICommentID} \"该Stage会在 PR 打开时触发(不包括 reopen)\") "
-                            }
-                            if (tg == "pr_close"){
-                                runStrategy += "[:fa-times-circle:](#note_${giteeApi.CICommentID} \"该Stage会在 PR 关闭时触发\") "
-                            }
-                            if (tg == "pr_tested"){
-                                runStrategy += "[:fa-check:](#note_${giteeApi.CICommentID} \"该Stage会在 PR 测试通过时触发\") "
-                            }
-                            if (tg == "pr_approved"){
-                                runStrategy += "[:fa-eye:](#note_${giteeApi.CICommentID} \"该Stage会在 PR 审核通过时触发\") "
-                            }
-                        }
+                        String runStrategy = utils.getStageTrigger(it.trigger as List<String>, giteeApi as GiteeApi, it as Map<String, Object>)
                         String elapsedTime = ""
                         String nowTime = ""
                         Integer runCnt = 0
@@ -179,8 +152,15 @@ class ManCI {
                             buildResult = 3
 
                         }else{
+
+                            nowTime = utils.getNowTime()
+                            runCnt = table.getStageRunTotal(it.name as String) + 1
                             logger.debug("needRunStage: ${it.name}")
                             try {
+                                table.addColumns([[it.name, group,
+                                                   "[${table.RUNNING_LABEL}](${script.env.RUN_DISPLAY_URL} \"点击跳转到 jenkins 构建页面\")",
+                                                   "0min0s" + "/" + table.getStageRunTotalTime(it.name as String),
+                                                   runCnt, nowTime, runStrategy, it.mark]])
                                 script.stage(it.name) {
                                     logger.debug("stage: ${it.name}")
                                     it.body.call()
@@ -207,8 +187,6 @@ class ManCI {
                             }
                             long timeForOne = System.currentTimeMillis() - startTime
                             String OneTime = utils.timestampConvert(timeForOne)
-                            nowTime = utils.getNowTime()
-                            runCnt = table.getStageRunTotal(it.name as String) + 1
                             String runTotalTimeStr
                             long runTotalTime
                             if (runCnt > 1){
@@ -224,13 +202,13 @@ class ManCI {
                         }
 
                         if (buildResult == 0) {
-                            table.addColumns([[it.name, group, "[${table.SUCCESS_LABEL}](${script.env.RUN_DISPLAY_URL} \"点击跳转到 jenkins 构建页面\")", elapsedTime, runCnt, nowTime, runStrategy, ""]])
+                            table.addColumns([[it.name, group, "[${table.SUCCESS_LABEL}](${script.env.RUN_DISPLAY_URL} \"点击跳转到 jenkins 构建页面\")", elapsedTime, runCnt, nowTime, runStrategy, it.mark]])
                         } else if (buildResult == 1) {
-                            table.addColumns([[it.name, group, "[${table.FAILURE_LABEL}](${script.env.RUN_DISPLAY_URL} \"点击跳转到 jenkins 构建页面\")", elapsedTime, runCnt, nowTime, runStrategy, ""]])
+                            table.addColumns([[it.name, group, "[${table.FAILURE_LABEL}](${script.env.RUN_DISPLAY_URL} \"点击跳转到 jenkins 构建页面\")", elapsedTime, runCnt, nowTime, runStrategy, it.mark]])
                         } else if (buildResult == 2) {
-                            table.addColumns([[it.name, group, "[${table.ABORTED_LABEL}](${script.env.RUN_DISPLAY_URL} \"点击跳转到 jenkins 构建页面\")", elapsedTime, runCnt, nowTime, runStrategy, ""]])
+                            table.addColumns([[it.name, group, "[${table.ABORTED_LABEL}](${script.env.RUN_DISPLAY_URL} \"点击跳转到 jenkins 构建页面\")", elapsedTime, runCnt, nowTime, runStrategy, it.mark]])
                         }else if (buildResult == 3) {
-                            table.addColumns([[it.name, group, "[${table.NOT_NEED_RUN_LABEL}](${script.env.RUN_DISPLAY_URL} \"点击跳转到 jenkins 构建页面\")", elapsedTime, runCnt, nowTime, runStrategy, ""]])
+                            table.addColumns([[it.name, group, "[${table.NOT_NEED_RUN_LABEL}](${script.env.RUN_DISPLAY_URL} \"点击跳转到 jenkins 构建页面\")", elapsedTime, runCnt, nowTime, runStrategy, it.mark]])
                         }
                         giteeApi.comment(table.text)
                         logger.debug(table.text)

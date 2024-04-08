@@ -3,7 +3,7 @@ package org.manci
 
 class Table {
     String tableTag = "MANCI V1"
-    def tableHeader = ["检查项", "[分组](# \"分组相同的 stage 将会顺序执行，分组不同的 stage 将会并发执行\")", "检查状态", "执行耗时", "执行次数", "最后一次执行时间", "触发策略", "备注"]
+    def tableHeader = ["检查项", "[分组](# \"分组相同的 stage 将会顺序执行，分组不同的 stage 将会并发执行\")", "检查状态", "执行耗时", "执行次数", "执行耗时", "触发策略", "备注"]
     public String text = ""
     def commentBody = ""
     def commentInfo = ""

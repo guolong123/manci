@@ -23,31 +23,31 @@ manci.LOGGER_LEVEL = "INFO"
 
 manci.withRun(){
     // 同一个 group 下的 stage 会顺序执行，不同的 group 将会并发执行
-    manci.stage("pr_note", [group: "group1", trigger: ["pr_note"], fileMatches: "'.*'" ]){
+    manci.stage("pr_note", [group: "group1", trigger: ["pr_note"], fileMatches: "'.*'", mark: "[访问地址](#)" ]){
         sh 'sleep 1'
     }
-    manci.stage("pr_merge", [group: "group2", trigger: ["pr_merge", "pr_note"], fileMatches: "'Jenkinsfile.groovy'"]){
+    manci.stage("pr_merge", [group: "group2", trigger: ["pr_merge", "pr_note"], fileMatches: "'Jenkinsfile.groovy'", mark: "[访问地址](#)"]){
         sh 'sleep 2'
     }
     manci.stage("pr_push", [group: "group3", trigger: ["pr_push", "pr_note"], fileMatches: "'.*'"]){
         sh 'sleep 3'
     }
     manci.stage("env_match", [group: "group3", trigger: ["env_match"],envMatches: ["BRANCH_NAME": "main"]]){
-        sh 'sleep 1'
+        sh 'sleep 6'
     }
     manci.stage("pr_close", [group: "group3", trigger: ["pr_close"]]){
-        sh 'sleep 2'
+        sh 'sleep 5'
     }
     manci.stage("pr_tested", [group: "group1", trigger: ["pr_tested"]]){
-        sh 'sleep 3'
+        sh 'sleep 4'
     }
     manci.stage("pr_approved", [group: "group2", trigger: ["pr_approved"]]){
-        sh 'sleep 1'
+        sh 'sleep 7'
     }
     manci.stage("pr_open", [group: "group3", trigger: ["pr_open"]]){
-        sh 'sleep 2'
+        sh 'sleep 8'
     }
     manci.stage("always", [group: "group4", trigger: ["always"]]){
-        sh 'sleep 3'
+        sh 'sleep 9'
     }
 }

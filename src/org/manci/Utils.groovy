@@ -88,6 +88,41 @@ class Utils {
         return linkedJson as LinkedHashMap<String, Object>
     }
 
+    public static String getStageTrigger(List<String> trigger, GiteeApi giteeApi, Map<String, Object> stage){
+        String runStrategy = ""
+
+        trigger.each {tg ->
+            if (tg == "pr_note"){
+                runStrategy += "[:fa-pencil:](#note_${giteeApi.CICommentID} \"该Stage可通过评论${stage.noteMatches.collect { it.replace('|', '\\\\|') }}触发\") "
+            }
+            if (tg == "pr_push"){
+                runStrategy += "[:fa-paypal:](#note_${giteeApi.CICommentID} \"该Stage可在推送代码匹配正则${stage.fileMatches.replace('\\|', '\\\\|')}时自动触发\") "
+            }
+            if (tg == "pr_merge"){
+                runStrategy += "[:fa-maxcdn:](#note_${giteeApi.CICommentID} \"该Stage可在合并代码匹配正则${stage.fileMatches.replace('\\|', '\\\\|')}时自动触发\") "
+            }
+            if (tg == "env_match"){
+                runStrategy += "[:fa-list:](#note_${giteeApi.CICommentID} \"该Stage可在环境变量匹配时触发: ${stage.envMatches}\") "
+            }
+            if (tg == "always"){
+                runStrategy += "[:fa-font:](#note_${giteeApi.CICommentID} \"该Stage无论如何都会触发\") "
+            }
+            if (tg == "pr_open"){
+                runStrategy += "[:fa-toggle-on:](#note_${giteeApi.CICommentID} \"该Stage会在 PR 打开时触发(不包括 reopen)\") "
+            }
+            if (tg == "pr_close"){
+                runStrategy += "[:fa-times-circle:](#note_${giteeApi.CICommentID} \"该Stage会在 PR 关闭时触发\") "
+            }
+            if (tg == "pr_tested"){
+                runStrategy += "[:fa-check:](#note_${giteeApi.CICommentID} \"该Stage会在 PR 测试通过时触发\") "
+            }
+            if (tg == "pr_approved"){
+                runStrategy += "[:fa-eye:](#note_${giteeApi.CICommentID} \"该Stage会在 PR 审核通过时触发\") "
+            }
+        }
+        return runStrategy
+    }
+
     boolean eventHandlerMerge(String fileMatches = "", String commitNumber=null, String targetBranch = "", String sourceBranch = null) {
         if (! fileMatches){
             logger.debug("fileMatches is empty, skip eventHandlerMerge")
