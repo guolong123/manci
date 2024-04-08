@@ -19,6 +19,7 @@ class ManCI {
     public String GITEE_ACCESS_TOKEN_KEY
     String LOGGER_LEVEL
     Utils utils
+    boolean failFast = true
 
 
     ManCI(script, String CIName = null) {
@@ -26,7 +27,6 @@ class ManCI {
         this.CIName = CIName ?: (script.params.CIName ? script.env.CINAME : "ManCI")
         this.logger = new Logger(script)
         this.utils = new Utils(script)
-
     }
 
     def setParams() {
@@ -41,8 +41,8 @@ class ManCI {
                 propertiesParams.add(script.booleanParam(name: it.name, description: it.description, defaultValue: it.defaultValue))
             } else if (it.type == "password") {
                 propertiesParams.add(script.password(name: it.name, description: it.description, defaultValue: it.defaultValue))
-            } else if (it.type == "textarea") {
-                propertiesParams.add(script.textarea(name: it.name, description: it.description, defaultValue: it.defaultValue))
+            } else if (it.type == "text") {
+                propertiesParams.add(script.text(name: it.name, description: it.description, defaultValue: it.defaultValue))
             } else if (it.type == "file") {
                 propertiesParams.add(script.file(name: it.name, description: it.description, defaultValue: it.defaultValue))
             } else if (it.type == "credentials") {
@@ -51,6 +51,8 @@ class ManCI {
                 )
             }
         }
+        // withAlone
+        propertiesParams.add(script.booleanParam(name: 'withAlone', description: '独立执行指定的 stage，不执行期依赖的 stage', defaultValue: 'false'))
         script.properties([script.parameters(propertiesParams)])
     }
 
@@ -79,6 +81,22 @@ class ManCI {
         this.script.env.LOGGER_LEVEL = LOGGER_LEVEL
 
         setParams()
+        script.withCredentials([script.string(credentialsId: GITEE_ACCESS_TOKEN_KEY, variable: "GITEE_ACCESS_TOKEN")]) {
+            String repoPath = script.env.giteeTargetNamespace + '/' + script.env.giteeTargetRepoName
+            logger.debug "script.env.GITEE_ACCESS_TOKEN: ${script.env.GITEE_ACCESS_TOKEN}"
+            giteeApi = new GiteeApi(script, "${script.env.GITEE_ACCESS_TOKEN}", repoPath, script.env.giteePullRequestIid, CIName)
+        }
+        giteeApi.label(giteeApi.labelWaiting)
+        if(this.script.env.noteBody){
+            // 当存在这个环境变量时则解析这个 comment，注入 kv到环境变量
+            logger.debug("noteBody: ${this.script.env.noteBody}")
+            def commands = this.utils.commandParse(this.script.env.noteBody as String)
+            def envArgs = commands.get("kwargs")
+            envArgs.each{key, value ->
+                logger.debug("${key}: ${value}")
+                this.script.env.putAt(key, value)
+            }
+        }
 
         logger.debug "script.env.ref: ${script.env.ref}"
         if ("${script.env.ref}" != "null") {
@@ -87,14 +105,17 @@ class ManCI {
         logger.debug "SSH_SECRET_KEY: ${SSH_SECRET_KEY}"
         logger.debug "isCI: ${this.isCI}"
         script.node(nodeLabels) {
+            giteeApi.label(giteeApi.labelRunning)
             script.stage("checkout") {
-                script.sh 'env'
+                if (LOGGER_LEVEL == "debug"){
+                    script.sh 'env'
+                }
                 def scmVars = script.checkout script.scm
                 if (this.isCI) {
-                    logger.debug "checkout: url ${script.env.giteeSourceRepoSshUrl}, branch: ${script.env.ref}"
+                    logger.debug "checkout: url ${script.env.giteeTargetRepoSshUrl}, branch: ${script.env.ref}"
                     script.checkout([$class           : 'GitSCM', branches: [[name: script.env.ref]], extensions: [],
                                      userRemoteConfigs: [[credentialsId: SSH_SECRET_KEY,
-                                                          url          : "${script.env.giteeSourceRepoSshUrl}"]]
+                                                          url          : "${script.env.giteeTargetRepoSshUrl}"]]
                     ])
                 } else {
                     if (script.env.BRANCH_NAME) {
@@ -106,14 +127,21 @@ class ManCI {
                         ])
                     }
                 }
-                body.call()
-                this.run()
             }
+            body.call()
+            try{
+                this.run()
+            }catch (Exception e){
+                giteeApi.label(giteeApi.labelFailure)
+                throw e
+            }
+            giteeApi.label(giteeApi.labelSuccess)
+            giteeApi.testPass()
         }
     }
 
     def run() {
-        HashMap<String, Closure> parallelStage = [:] as HashMap<String, Closure>
+        HashMap<String, Object> parallelStage = [:] as HashMap<String, Object>
         Exception error = null
         if (isCI) {
             List<String> stageNames = [] as List<String>
@@ -123,17 +151,12 @@ class ManCI {
                 }
             }
             table = new Table(script, CIName, "", projectDescription + "\n<details>\n<summary>参数说明:</summary>\n\n" + paramsDescription.join("\n") + "\n</details>", stageNames)
-            script.withCredentials([script.string(credentialsId: GITEE_ACCESS_TOKEN_KEY, variable: "GITEE_ACCESS_TOKEN")]) {
-                String repoPath = script.env.giteeSourceNamespace + '/' + script.env.giteeSourceRepoName
-                logger.debug "script.env.GITEE_ACCESS_TOKEN: ${script.env.GITEE_ACCESS_TOKEN}"
-                giteeApi = new GiteeApi(script, "${script.env.GITEE_ACCESS_TOKEN}", repoPath, script.env.giteePullRequestIid, CIName)
-            }
+
             table.text = giteeApi.initComment(table.text)
             table.tableParse()  // 从已有的评论中解析出table
             stages.each { group, st ->
                 parallelStage[group] = {
                     st.each {
-                        it.noteMatches.add("rebuild")
                         it.noteMatches.add("rebuild ${it.name}")
                         String runStrategy = utils.getStageTrigger(it.trigger as List<String>, giteeApi as GiteeApi, it as Map<String, Object>)
                         String elapsedTime = ""
@@ -147,12 +170,10 @@ class ManCI {
                                 it.noteMatches as List<String>, failureStages as List<String>)
                         if(!needRun){
                             script.stage(it.name) {
-                                script.echo "skip stage: ${it.name}"
+                                org.jenkinsci.plugins.pipeline.modeldefinition.Utils.markStageSkippedForConditional(it.name)
                             }
                             buildResult = 3
-
                         }else{
-
                             nowTime = utils.getNowTime()
                             runCnt = table.getStageRunTotal(it.name as String) + 1
                             logger.debug("needRunStage: ${it.name}")
@@ -162,7 +183,7 @@ class ManCI {
                                                    "0min0s" + "/" + table.getStageRunTotalTime(it.name as String),
                                                    runCnt, nowTime, runStrategy, it.mark]])
                                 script.stage(it.name) {
-                                    logger.debug("stage: ${it.name}")
+                                    logger.info("stage: ${it.name}")
                                     it.body.call()
                                     logger.debug("stage: ${it.name} done")
                                 }
@@ -179,7 +200,7 @@ class ManCI {
                             } catch (NotSerializableException e) {
                                 logger.error("[${it.name}]: ${e}")
                                 buildResult = 0
-//                                error = e as Exception
+                                error = e as Exception
                             } catch (Exception e){
                                 logger.error("[${it.name}]: ${e}")
                                 buildResult = 1
@@ -212,6 +233,9 @@ class ManCI {
                         }
                         giteeApi.comment(table.text)
                         logger.debug(table.text)
+                        if (error){
+                            throw error
+                        }
                     }
                 }
             }
@@ -224,15 +248,32 @@ class ManCI {
                             if (needRun){
                                 it.body.call()
                             }
-
                         }
                     }
                 }
             }
         }
+        if(failFast){
+            parallelStage['failFast'] = true
+        }
+        Closure setupStage = parallelStage.get("setup") as Closure
+        Closure teardownStage = parallelStage.get("teardown") as Closure
+        if (setupStage){
+            parallelStage.remove("setup")
+            setupStage.call()
+        }
+        if (teardownStage){
+            parallelStage.remove("teardown")
+        }
+
         script.parallel parallelStage
-        if (error){
-            throw error
+
+        if (teardownStage){
+            teardownStage.call()
+        }
+
+        if (!table.isSuccessful()){
+            throw new Exception("存在未成功的 stage，此次构建将以失败状态退出")
         }
         logger.info "ManCI Finished"
     }

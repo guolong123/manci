@@ -46,6 +46,14 @@ class Table {
         }
     }
 
+    Boolean isSuccessful(){
+        if (this.table.columns.find { it[2].contains(FAILURE_LABEL) || it[2].contains(ABORTED_LABEL) }) {
+            return false
+        } else {
+            return true
+        }
+    }
+
     def addColumns(List<List<String>> columnList) {
         columnList.eachWithIndex { row, rowIndex ->
             this.table.columns.eachWithIndex { t, i ->
@@ -75,13 +83,13 @@ class Table {
             num = runTotal.toInteger()
 
         } catch (Exception e) {
-            logger.debug "无法将字符串 ${runTotal} 转换为数字：$e.message"
+            logger.error "无法将字符串 ${runTotal} 转换为数字：$e.message"
         }
         return num
     }
 
     def getStageRunTotalTime(String stageName) {
-        String runTotalTime = "0h0min0s"
+        String runTotalTime = "0m0s"
         this.table.columns.each { t ->
             if (t[0] == stageName) {
                 runTotalTime = t[3]
@@ -91,7 +99,7 @@ class Table {
             runTotalTime = runTotalTime.split("/")[-1]
 
         } catch (Exception e) {
-            logger.debug "无法将字符串 ${runTotalTime} 转换为数字：$e.message"
+            logger.error "无法将字符串 ${runTotalTime} 转换为数字：$e.message"
         }
         return runTotalTime
     }

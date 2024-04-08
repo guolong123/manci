@@ -77,15 +77,14 @@ class HttpClient {
 
                 // 错误处理
                 response.failure = { resp, json ->
-                    logger.debug "Request failed with Method/URL: ${req.method}/${uri.toString()} and status: ${resp.statusLine}"
-                    logger.debug("Request with headers: ${headers}")
-                    logger.debug("Response body: ${json}")
+                    logger.error "Request failed with Method/URL: ${req.method}/${uri.toString()} and status: ${resp.statusLine}"
+                    logger.error("Request with headers: ${headers}")
+                    logger.error("Response body: ${json}")
                 }
             }
         } catch (Exception e) {
-            println "An error occurred while making the request: $e"
+            logger.error "An error occurred while making the request: $e"
         }
-
     }
 }
 

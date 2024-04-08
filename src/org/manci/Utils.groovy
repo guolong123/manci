@@ -125,7 +125,7 @@ class Utils {
     boolean eventHandlerMerge(String fileMatches = "", String commitNumber=null, String targetBranch = "", String sourceBranch = null) {
         if (! fileMatches){
             logger.debug("fileMatches is empty, skip eventHandlerMerge")
-            return true
+            return false
         }
         boolean needRun = false
         String cnt = "0"
@@ -146,7 +146,7 @@ class Utils {
         return needRun
     }
 
-    boolean eventHandlerNote(String stageName,List<String> noteMatches = [],List<String> failureStages = [], String fileMatches = "", String targetBranch=null, String sourceBranch = null) {
+    boolean eventHandlerNote(List<String > triggers, String stageName, List<String> noteMatches = [],List<String> failureStages = [], String fileMatches = "", String targetBranch=null, String sourceBranch = null) {
         boolean needRun = false
         Map<String, Object> commandParse = commandParse(this.script.env.noteBody as String)
 
@@ -159,6 +159,9 @@ class Utils {
                 return needRun
             }
         }
+        if (script.env.withAlone == "true"){
+            return false
+        }
         def flag = commandParse.get("flag") as String
         if (flag != "rebuild") {
             logger.debug("eventHandlerNote: flag is not rebuild, skip eventHandlerNote")
@@ -167,7 +170,12 @@ class Utils {
         if (stageNames.size() == 0) {
             // 当直接评论 rebuild时，会重新以代码提交的事件重新运行
             logger.debug("eventHandlerNote: stageNames is empty, fileMatches: ${fileMatches}, targetBranch: ${targetBranch}, stageName: ${stageName}")
-            needRun = eventHandlerMerge(fileMatches, null, targetBranch, sourceBranch)
+            if(triggers.contains("pr_push")){
+                needRun = eventHandlerMerge(fileMatches, null, targetBranch, sourceBranch)
+            }else {
+                needRun = false
+            }
+
         } else if (rexContains(noteMatches, this.script.env.noteBody)) {
             // 当rebuild后面的名称与当前不一致，但runCommands参数中包含评论内容时
             logger.debug("eventHandlerNote: stageNames contains note")
@@ -177,11 +185,7 @@ class Utils {
                 logger.debug("eventHandlerNote: stageNames contains failure")
                 needRun = true
             }
-        } else if (stageNames.contains("all")) {
-            logger.debug("eventHandlerNote: stageNames contains all")
-            needRun = true
         }
-
         return needRun
     }
 
@@ -280,7 +284,7 @@ class Utils {
         if (trigger.contains("pr_note")){
             if(this.script.env.giteeActionType == "NOTE"  && jsonBody.action == "comment"){
                 String targetBranch = "origin/${this.script.env.giteeTargetBranch}"
-                needRun = eventHandlerNote(stageName, noteMatches, failureStages, fileMatches, targetBranch, script.env.giteePullRequestLastCommit as String)
+                needRun = eventHandlerNote(trigger, stageName, noteMatches, failureStages, fileMatches, targetBranch, script.env.giteePullRequestLastCommit as String)
                 logger.debug("eventHandlerNote: note, needRun: ${needRun}")
             }
         }
@@ -310,7 +314,7 @@ class Utils {
         String formattedMinutes = minutes.toString().padLeft(1, '0')
         String formattedSeconds = seconds.toString().padLeft(1, '0')
 
-        return "${formattedMinutes}min${formattedSeconds}s" as String
+        return "${formattedMinutes}m${formattedSeconds}s" as String
     }
 
     static long reverseTimestampConvert(String formattedTimestamp) {

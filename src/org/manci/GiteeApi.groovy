@@ -11,6 +11,11 @@ class GiteeApi {
     String CICommentUrl
     def script
     Logger logger
+    public labelSuccess = 'ci-success'
+    public labelFailure = 'ci-failure'
+    public labelWaiting = 'ci-waiting'
+    public labelRunning = 'ci-running'
+
 
     GiteeApi(script=null, String token=null, String repoPath, String pullRequestID, String CICommentTag) {
         if (token == null) {
@@ -86,7 +91,7 @@ class GiteeApi {
     }
 
     String getPullRequestComments() {
-        def url = "/api/v5/repos/${repoPath}/pulls/${pullRequestID}/comments"
+        def url = "/api/v5/repos/${repoPath}/pulls/${pullRequestID}/comments?page=1&per_page=100"
         def response = client.get(url)
         return response
     }
@@ -117,4 +122,147 @@ class GiteeApi {
         return response
     }
 
+    def addLabel(labelName){
+        def url = "/api/v5/repos/${repoPath}/pulls/${pullRequestID}/labels"
+        List<String> data = [
+                labelName
+        ]
+        def response = client.post(url, data)
+        return response
+    }
+
+    def deleteLabel(labelNames){
+        def url = "/api/v5/repos/${repoPath}/pulls/${pullRequestID}/labels/${labelNames}"
+        def response = client.delete(url)
+        return response
+    }
+
+    def getLabels(){
+        def tags = []
+        def url = "/api/v5/repos/${repoPath}/pulls/${pullRequestID}/labels?page=1&per_page=100"
+        def resp = client.get(url)
+        for (element in resp) {
+            tags.add(element.name)
+        }
+        return tags
+    }
+
+    def label(labelName){
+        this.deleteLabel("${this.labelSuccess},${this.labelFailure},${this.labelWaiting},${this.labelRunning}")
+        this.addLabel(labelName)
+    }
+
+    def testPass(){
+        def url = "/api/v5/repos/${repoPath}/pulls/${pullRequestID}/test"
+        Map<String, Object> data = [
+            force: false
+        ]
+        def response = client.post(url, data)
+        return response
+    }
+
+    def review(String reviewers, Integer reviewerNumber = 1){
+        if(! this.selectReviewer()){
+            this.addReviewer(reviewers)
+            this.setReviewerNumber(reviewerNumber)
+        }
+    }
+
+    def selectReviewer(){
+        def url = "/api/v5/repos/${repoPath}/pulls/${pullRequestID}"
+        def resp = client.get(url)
+        def reviewers = []
+
+        if(resp.assignees.size() > 0){
+            for (element in resp.assignees) {
+                reviewers.add(element.login)
+            }
+        }
+        return reviewers
+    }
+
+    def addReviewer(assignees){
+        def url = "/api/v5/repos/${repoPath}/pulls/${pullRequestID}/assignees"
+        Map<String, Object> data = [
+            assignees: assignees
+        ]
+        return client.post(url, data)
+    }
+
+    def resetReviewer(assignees){
+        def url = "/api/v5/repos/${repoPath}/pulls/${pullRequestID}/assignees?assignees=${assignees}"
+        return client.delete(url)
+    }
+
+    def resetReview(){
+        def url = "/api/v5/repos/${repoPath}/pulls/${pullRequestID}/assignees"
+        Map<String, Object> data = [
+             reset_all: false
+        ]
+        return client.patch(url, data)
+    }
+
+    def addTester(testers){
+        def url = "/api/v5/repos/${repoPath}/pulls/${pullRequestID}/testers"
+        Map<String, Object> data = [
+            assignees: testers
+        ]
+        return client.post(url, data)
+    }
+
+    def resetTester(testers){
+        // 取消用户审查
+        def url = "/api/v5/repos/${repoPath}/pulls/${pullRequestID}/testers?assignees=${testers}"
+        return client.delete(url)
+    }
+
+    def resetTest(){
+        // 取消用户审查状态（将审查通过改成未审查）
+        def url = "/api/v5/repos/${repoPath}/pulls/${pullRequestID}/testers"
+        Map<String, Object> data = [
+                "reset_all": "false"
+        ]
+        return client.patch(url, data)
+    }
+
+    def setTesterNumber(testerNumber=1){
+        // 修改测试通过最低数量
+        def url = "/api/v5/repos/${repoPath}/pulls/${pullRequestID}"
+        Map<String, Object> data = [
+                "testers_number": testerNumber
+        ]
+        return client.patch(url, data)
+    }
+
+    def setReviewerNumber(reviewerNumber=1){
+        // 修改审查通过最低数量
+        def url = "/api/v5/repos/${repoPath}/pulls/${pullRequestID}"
+        Map<String, Object> data = [
+                "assignees_number": reviewerNumber
+        ]
+        return client.patch(url, data)
+    }
+
+    def getPrMergeStatus(){
+        def url = "/api/v5/repos/${repoPath}/pulls/${pullRequestID}"
+        def resp = client.get(url)
+        return resp.state
+    }
+
+    def updateInfo(text){
+        // 更新pr描述
+        def url = "/api/v5/repos/${repoPath}/pulls/${pullRequestID}"
+        Map<String, Object> data = [
+                body: text
+        ]
+        return client.patch(url, data)
+    }
+
+    def getPrInfo(){
+        // 获取描述信息
+        def url = "/api/v5/repos/${repoPath}/pulls/${pullRequestID}"
+        def resp = client.get(url)
+        def body = resp.body
+        return body
+    }
 }
