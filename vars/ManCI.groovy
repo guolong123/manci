@@ -111,7 +111,7 @@ class ManCI {
     }
 
     def run() {
-        Map<String, Closure> parallelStage = [:] as Map<String, Closure>
+        HashMap<String, Closure> parallelStage = [:] as HashMap<String, Closure>
         Exception error = null
         if (isCI) {
             List<String> stageNames = [] as List<String>

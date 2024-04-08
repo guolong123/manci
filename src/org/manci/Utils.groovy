@@ -99,7 +99,7 @@ class Utils {
             if(commitNumber){
                 // merge
                 logger.info("eventHandlerMerge: merge")
-                this.script.sh(script:"git fetch origin ${targetBranch}")
+//                this.script.sh(script:"git fetch origin ${targetBranch}")
                 this.script.sh(script:"git log")
                 cnt = this.script.sh(script:"git diff --name-only ${targetBranch}@{${commitNumber}}...${targetBranch} | grep -c ${fileMatches} | xargs echo", returnStdout: true)
             }else {
