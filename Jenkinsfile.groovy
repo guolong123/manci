@@ -21,8 +21,26 @@ manci.GITEE_ACCESS_TOKEN_KEY = 'guolong-gitee-access-token'
 
 manci.LOGGER_LEVEL = "INFO"
 
+PR_TITLE_CHECK_REX = /(\[)(feat|fix|build|docs|style|refactor|perf|test|revert|chore|upgrade|devops)((\(.+\))?)\](:)( )(.{1,50})([\s\S]*)$/
+
 manci.withRun(){
     // 同一个 group 下的 stage 会顺序执行，不同的 group 将会并发执行
+    manci.stage("PR_TITLE_CHECK", [group: "check", trigger: ["pr_note", "pr_open"], mark: "[访问地址](#)" ]){
+        def matcher = (env.giteePullRequestTitle ==~ PR_TITLE_CHECK_REX)
+        if (matcher != true){
+            throw new Exception("PR提交不规范, 内容: ${text}")
+        }
+    }
+
+    manci.stage("PR_COMMIT_CHECK",[group: "check", trigger: ["pr_note", "pr_open"], mark: "[访问地址](#)" ]){
+        commits = sh(script:"git log --left-right --format=%s origin/${env.afterMergePRCommit}...${env.ref}",returnStdout: true)
+        echo "commits: ${commits}"
+        def matcher = (env.giteePullRequestTitle ==~ PR_TITLE_CHECK_REX)
+        if (matcher != true){
+            throw new Exception("commit message 提交不规范, 内容: ${text}")
+        }
+    }
+
     manci.stage("pr_note", [group: "group1", trigger: ["pr_note"], fileMatches: "'.*'", mark: "[访问地址](#)" ]){
         sh 'sleep 1'
     }

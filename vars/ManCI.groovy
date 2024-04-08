@@ -179,7 +179,7 @@ class ManCI {
                             } catch (NotSerializableException e) {
                                 logger.error("[${it.name}]: ${e}")
                                 buildResult = 0
-                                error = e as Exception
+//                                error = e as Exception
                             } catch (Exception e){
                                 logger.error("[${it.name}]: ${e}")
                                 buildResult = 1
