@@ -3,7 +3,7 @@ package org.manci
 
 class Table {
     String tableTag = "MANCI V1"
-    def tableHeader = ["检查项", "分组", "检查状态", "执行耗时", "执行次数", "最后一次执行时间", "触发策略", "备注"]
+    def tableHeader = ["检查项", "[分组](# \"分组相同的 stage 将会顺序执行，分组不同的 stage 将会并发执行\")", "检查状态", "执行耗时", "执行次数", "最后一次执行时间", "触发策略", "备注"]
     public String text = ""
     def commentBody = ""
     def commentInfo = ""
@@ -50,9 +50,9 @@ class Table {
         columnList.eachWithIndex { row, rowIndex ->
             this.table.columns.eachWithIndex { t, i ->
                 if (row[0] == t[0]) {
-                    logger.info("exist row: ${t[2]}")
+                    logger.debug("exist row: ${t[2]}")
                     if ((row[2].contains(NOT_NEED_RUN_LABEL) || row[2].contains(WAITING_LABEL)) && !t[2].contains(WAITING_LABEL)) {
-                         logger.info("stage ${row[0]} status does not need to be updated")
+                         logger.debug("stage ${row[0]} status does not need to be updated")
                         return
                     } else {
                         this.table.columns[i] = row
@@ -75,7 +75,7 @@ class Table {
             num = runTotal.toInteger()
 
         } catch (Exception e) {
-            logger.info "无法将字符串 ${runTotal} 转换为数字：$e.message"
+            logger.debug "无法将字符串 ${runTotal} 转换为数字：$e.message"
         }
         return num
     }
@@ -91,7 +91,7 @@ class Table {
             runTotalTime = runTotalTime.split("/")[-1]
 
         } catch (Exception e) {
-            logger.info "无法将字符串 ${runTotalTime} 转换为数字：$e.message"
+            logger.debug "无法将字符串 ${runTotalTime} 转换为数字：$e.message"
         }
         return runTotalTime
     }

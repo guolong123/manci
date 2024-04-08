@@ -19,7 +19,7 @@ manci.SSH_SECRET_KEY = "3ee85ad2-4f01-40f3-930f-64fcd4f3fbfc"
 
 manci.GITEE_ACCESS_TOKEN_KEY = 'guolong-gitee-access-token'
 
-manci.DEBUG = "true"
+manci.LOGGER_LEVEL = "INFO"
 
 manci.withRun(){
     // 同一个 group 下的 stage 会顺序执行，不同的 group 将会并发执行

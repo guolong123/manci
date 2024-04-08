@@ -2,16 +2,17 @@ package org.manci
 
 class Logger {
     def script
+    String logLevel
 
-    Logger(script=null) {
+    Logger(script = null) {
         this.script = script
-
+        this.logLevel = script.env.LOGGER_LEVEL ? script.LOGGER_LEVEL : "info"
     }
 
     @NonCPS
     def info(String msg) {
-        def debug = script.env.DEBUG?script.DEBUG:"false"
-        if (debug == "true") {
+
+        if (logLevel == "info") {
             msg = "[INFO] " + msg
             if (script) {
                 script.echo msg
@@ -20,11 +21,11 @@ class Logger {
             }
         }
     }
+
     @NonCPS
-    def error(String msg) {
-        def debug = script.env.DEBUG?script.DEBUG:"false"
-        if (debug == "true") {
-            msg = "[ERROR] " + msg
+    def debug(String msg) {
+        if (["error", "debug"].contains(logLevel)) {
+            msg = "[DEBUG] " + msg
             if (script) {
                 script.echo msg
             } else {
@@ -32,11 +33,11 @@ class Logger {
             }
         }
     }
+
     @NonCPS
-    def debug(String msg) {
-        def debug = script.env.DEBUG?script.DEBUG:"false"
-        if (debug == "true") {
-            msg = "[DEBUG] " + msg
+    def error(String msg) {
+        if (["info", "error", "debug"].contains(logLevel)) {
+            msg = "[ERROR] " + msg
             if (script) {
                 script.echo msg
             } else {

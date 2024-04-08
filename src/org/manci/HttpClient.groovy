@@ -59,7 +59,7 @@ class HttpClient {
 
                 // 响应处理
                 response.success = { resp, json ->
-                    logger.info "Response status with Method/Url: ${req.method}/${uri.toString()} ${resp.statusLine}"
+                    logger.debug "Response status with Method/Url: ${req.method}/${uri.toString()} ${resp.statusLine}"
                     // 将响应体转换为JSON对象（如果响应内容是JSON格式）
                     def responseBodyJson
                     if (json instanceof ArrayList) {
@@ -77,9 +77,9 @@ class HttpClient {
 
                 // 错误处理
                 response.failure = { resp, json ->
-                    logger.info "Request failed with Method/URL: ${req.method}/${uri.toString()} and status: ${resp.statusLine}"
-                    logger.info("Request with headers: ${headers}")
-                    logger.info("Response body: ${json}")
+                    logger.debug "Request failed with Method/URL: ${req.method}/${uri.toString()} and status: ${resp.statusLine}"
+                    logger.debug("Request with headers: ${headers}")
+                    logger.debug("Response body: ${json}")
                 }
             }
         } catch (Exception e) {

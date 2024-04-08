@@ -90,24 +90,24 @@ class Utils {
 
     boolean eventHandlerMerge(String fileMatches = "", String commitNumber=null, String targetBranch = "", String sourceBranch = null) {
         if (! fileMatches){
-            logger.info("fileMatches is empty, skip eventHandlerMerge")
-            return false
+            logger.debug("fileMatches is empty, skip eventHandlerMerge")
+            return true
         }
         boolean needRun = false
         String cnt = "0"
         try{
             if(commitNumber){
                 // merge
-                logger.info("eventHandlerMerge: merge")
+                logger.debug("eventHandlerMerge: merge")
 //                this.script.sh(script:"git fetch origin ${targetBranch}")
                 this.script.sh(script:"git log")
                 cnt = this.script.sh(script:"git diff --name-only ${targetBranch}@{${commitNumber}}...${targetBranch} | grep -c ${fileMatches} | xargs echo", returnStdout: true)
             }else {
-                logger.info("eventHandlerMerge: push")
+                logger.debug("eventHandlerMerge: push")
                 cnt = this.script.sh(script:"git diff --name-only ${targetBranch}...${sourceBranch} | grep -c ${fileMatches} | xargs echo", returnStdout: true)
             }
         }catch(Exception e){
-            logger.info("${e}")
+            logger.debug("${e}")
         }
         if (Integer.parseInt(cnt.strip()) > 0){
             needRun = true
@@ -123,31 +123,31 @@ class Utils {
         noteMatches.add(stageName)
         for (sn in stageNames){
             if (stageName.contains(sn.strip())){
-                logger.info("eventHandlerNote: stageName contains ${sn}")
+                logger.debug("eventHandlerNote: stageName contains ${sn}")
                 needRun = true
                 return needRun
             }
         }
         def flag = commandParse.get("flag") as String
         if (flag != "rebuild") {
-            logger.info("eventHandlerNote: flag is not rebuild, skip eventHandlerNote")
+            logger.debug("eventHandlerNote: flag is not rebuild, skip eventHandlerNote")
             return false
         }
         if (stageNames.size() == 0) {
             // 当直接评论 rebuild时，会重新以代码提交的事件重新运行
-            logger.info("eventHandlerNote: stageNames is empty, fileMatches: ${fileMatches}, targetBranch: ${targetBranch}, stageName: ${stageName}")
+            logger.debug("eventHandlerNote: stageNames is empty, fileMatches: ${fileMatches}, targetBranch: ${targetBranch}, stageName: ${stageName}")
             needRun = eventHandlerMerge(fileMatches, null, targetBranch, sourceBranch)
         } else if (rexContains(noteMatches, this.script.env.noteBody)) {
             // 当rebuild后面的名称与当前不一致，但runCommands参数中包含评论内容时
-            logger.info("eventHandlerNote: stageNames contains note")
+            logger.debug("eventHandlerNote: stageNames contains note")
             needRun = true
         } else if (stageNames.contains("failure")) {
             if (failureStages.contains(stageName)) {
-                logger.info("eventHandlerNote: stageNames contains failure")
+                logger.debug("eventHandlerNote: stageNames contains failure")
                 needRun = true
             }
         } else if (stageNames.contains("all")) {
-            logger.info("eventHandlerNote: stageNames contains all")
+            logger.debug("eventHandlerNote: stageNames contains all")
             needRun = true
         }
 
@@ -200,50 +200,50 @@ class Utils {
                 def commitNumber = "${jsonBody.pull_request.commits}"
                 def targetBranch = "origin/${this.script.env.giteeTargetBranch}"
                 needRun = eventHandlerMerge(fileMatches, commitNumber, targetBranch, null)
-                logger.info("eventHandlerMerge: merge, commitNumber: ${commitNumber}, needRun: ${needRun}")
+                logger.debug("eventHandlerMerge: merge, commitNumber: ${commitNumber}, needRun: ${needRun}")
             }
         }
         if (trigger.contains("pr_push")){
             if(this.script.env.giteeActionType == "MERGE"  && (jsonBody.action == "update" || jsonBody.action == "open")){
                 String targetBranch = "origin/${this.script.env.giteeTargetBranch}"
                 needRun = eventHandlerMerge(fileMatches, null, targetBranch, script.env.giteePullRequestLastCommit as String)
-                logger.info("eventHandlerMerge: push, needRun: ${needRun}")
+                logger.debug("eventHandlerMerge: push, needRun: ${needRun}")
             }
         }
         if (trigger.contains("pr_close")){
             if(this.script.env.giteeActionType == "MERGE"  && jsonBody.action == "close"){
                 needRun = true
-                logger.info("eventHandlerMerge: close, needRun: ${needRun}")
+                logger.debug("eventHandlerMerge: close, needRun: ${needRun}")
             }
         }
         if (trigger.contains("pr_open")){
             if(this.script.env.giteeActionType == "MERGE"  && jsonBody.action == "open"){
                 needRun = true
-                logger.info("eventHandlerMerge: open, needRun: ${needRun}")
+                logger.debug("eventHandlerMerge: open, needRun: ${needRun}")
             }
         }
         if (trigger.contains("pr_approved")){
             if(this.script.env.giteeActionType == "MERGE"  && jsonBody.action == "approved"){
                 needRun = true
-                logger.info("eventHandlerMerge: approved, needRun: ${needRun}")
+                logger.debug("eventHandlerMerge: approved, needRun: ${needRun}")
             }
         }
         if (trigger.contains("pr_tested")){
             if(this.script.env.giteeActionType == "MERGE"  && jsonBody.action == "tested"){
                 needRun = true
-                logger.info("eventHandlerMerge: tested, needRun: ${needRun}")
+                logger.debug("eventHandlerMerge: tested, needRun: ${needRun}")
             }
         }
         if (trigger.contains("pr_note")){
             if(this.script.env.giteeActionType == "NOTE"  && jsonBody.action == "comment"){
                 String targetBranch = "origin/${this.script.env.giteeTargetBranch}"
                 needRun = eventHandlerNote(stageName, noteMatches, failureStages, fileMatches, targetBranch, script.env.giteePullRequestLastCommit as String)
-                logger.info("eventHandlerNote: note, needRun: ${needRun}")
+                logger.debug("eventHandlerNote: note, needRun: ${needRun}")
             }
         }
         if (trigger.contains("env_match")) {
             needRun = eventHandlerEnv(envMatches)
-            logger.info("eventHandlerEnv: env_match, needRun: ${needRun}")
+            logger.debug("eventHandlerEnv: env_match, needRun: ${needRun}")
         }
         return needRun
 

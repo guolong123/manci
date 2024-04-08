@@ -17,7 +17,7 @@ class ManCI {
     def script
     public String SSH_SECRET_KEY
     public String GITEE_ACCESS_TOKEN_KEY
-    String DEBUG
+    String LOGGER_LEVEL
     Utils utils
 
 
@@ -74,22 +74,22 @@ class ManCI {
     }
 
     def withRun(String nodeLabels = null, Closure body) {
-        this.script.env.DEBUG = DEBUG
+        this.script.env.LOGGER_LEVEL = LOGGER_LEVEL
 
         setParams()
 
-        logger.info "script.env.ref: ${script.env.ref}"
+        logger.debug "script.env.ref: ${script.env.ref}"
         if ("${script.env.ref}" != "null") {
             this.isCI = true
         }
-        logger.info "SSH_SECRET_KEY: ${SSH_SECRET_KEY}"
-        logger.info "isCI: ${this.isCI}"
+        logger.debug "SSH_SECRET_KEY: ${SSH_SECRET_KEY}"
+        logger.debug "isCI: ${this.isCI}"
         script.node(nodeLabels) {
             script.stage("checkout") {
                 script.sh 'env'
                 def scmVars = script.checkout script.scm
                 if (this.isCI) {
-                    logger.info "checkout: url ${script.env.giteeSourceRepoSshUrl}, branch: ${script.env.ref}"
+                    logger.debug "checkout: url ${script.env.giteeSourceRepoSshUrl}, branch: ${script.env.ref}"
                     script.checkout([$class           : 'GitSCM', branches: [[name: script.env.ref]], extensions: [],
                                      userRemoteConfigs: [[credentialsId: SSH_SECRET_KEY,
                                                           url          : "${script.env.giteeSourceRepoSshUrl}"]]
@@ -123,7 +123,7 @@ class ManCI {
             table = new Table(script, CIName, "", projectDescription + "\n<details>\n<summary>参数说明:</summary>\n\n" + paramsDescription.join("\n") + "\n</details>", stageNames)
             script.withCredentials([script.string(credentialsId: GITEE_ACCESS_TOKEN_KEY, variable: "GITEE_ACCESS_TOKEN")]) {
                 String repoPath = script.env.giteeSourceNamespace + '/' + script.env.giteeSourceRepoName
-                logger.info "script.env.GITEE_ACCESS_TOKEN: ${script.env.GITEE_ACCESS_TOKEN}"
+                logger.debug "script.env.GITEE_ACCESS_TOKEN: ${script.env.GITEE_ACCESS_TOKEN}"
                 giteeApi = new GiteeApi(script, "${script.env.GITEE_ACCESS_TOKEN}", repoPath, script.env.giteePullRequestIid, CIName)
             }
             table.text = giteeApi.initComment(table.text)
@@ -145,7 +145,7 @@ class ManCI {
                                 runStrategy += "[:fa-maxcdn:](#note_${giteeApi.CICommentID} \"该Stage可在合并代码匹配正则${it.fileMatches.replace('\\|', '\\\\|')}时自动触发\") "
                             }
                             if (tg == "env_match"){
-                                runStrategy += "[:fa-th:](#note_${giteeApi.CICommentID} \"该Stage可在环境变量匹配时触发: ${it.envMatches}\") "
+                                runStrategy += "[:fa-list:](#note_${giteeApi.CICommentID} \"该Stage可在环境变量匹配时触发: ${it.envMatches}\") "
                             }
                             if (tg == "always"){
                                 runStrategy += "[:fa-font:](#note_${giteeApi.CICommentID} \"该Stage无论如何都会触发\") "
@@ -224,16 +224,16 @@ class ManCI {
                         }
 
                         if (buildResult == 0) {
-                            table.addColumns([[it.name, group, table.SUCCESS_LABEL, elapsedTime, runCnt, nowTime, runStrategy, ""]])
+                            table.addColumns([[it.name, group, "[${table.SUCCESS_LABEL}](${script.env.RUN_DISPLAY_URL} \"点击跳转到 jenkins 构建页面\")", elapsedTime, runCnt, nowTime, runStrategy, ""]])
                         } else if (buildResult == 1) {
-                            table.addColumns([[it.name, group, table.FAILURE_LABEL, elapsedTime, runCnt, nowTime, runStrategy, ""]])
+                            table.addColumns([[it.name, group, "[${table.FAILURE_LABEL}](${script.env.RUN_DISPLAY_URL} \"点击跳转到 jenkins 构建页面\")", elapsedTime, runCnt, nowTime, runStrategy, ""]])
                         } else if (buildResult == 2) {
-                            table.addColumns([[it.name, group, table.ABORTED_LABEL, elapsedTime, runCnt, nowTime, runStrategy, ""]])
+                            table.addColumns([[it.name, group, "[${table.ABORTED_LABEL}](${script.env.RUN_DISPLAY_URL} \"点击跳转到 jenkins 构建页面\")", elapsedTime, runCnt, nowTime, runStrategy, ""]])
                         }else if (buildResult == 3) {
-                            table.addColumns([[it.name, group, table.NOT_NEED_RUN_LABEL, elapsedTime, runCnt, nowTime, runStrategy, ""]])
+                            table.addColumns([[it.name, group, "[${table.NOT_NEED_RUN_LABEL}](${script.env.RUN_DISPLAY_URL} \"点击跳转到 jenkins 构建页面\")", elapsedTime, runCnt, nowTime, runStrategy, ""]])
                         }
                         giteeApi.comment(table.text)
-                        logger.info(table.text)
+                        logger.debug(table.text)
                     }
                 }
             }
