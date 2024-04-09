@@ -11,7 +11,7 @@ manci.SSH_SECRET_KEY = "3ee85ad2-4f01-40f3-930f-64fcd4f3fbfc"
 
 manci.GITEE_ACCESS_TOKEN_KEY = 'guolong-gitee-access-token'
 
-manci.LOGGER_LEVEL = "DEBUG"
+env.LOGGER_LEVEL = "DEBUG"
 
 PR_TITLE_CHECK_REX = /(\[)(feat|fix|build|docs|style|refactor|perf|test|revert|chore|upgrade|devops)((\(.+\))?)\](:)( )(.{1,50})([\s\S]*)$/
 

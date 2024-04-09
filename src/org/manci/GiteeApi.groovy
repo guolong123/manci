@@ -56,6 +56,7 @@ class GiteeApi {
 
     String initComment(String comment){
         def comments = getPullRequestComments()
+        logger.debug("comments: ${comments}")
         for (element in comments) {
             if (element.body.contains(CICommentTag)){
                 CICommentUrl = element.url
@@ -92,8 +93,12 @@ class GiteeApi {
     }
 
     String getPullRequestComments() {
-        def url = "/api/v5/repos/${repoPath}/pulls/${pullRequestID}/comments?page=1&per_page=100"
-        def response = client.get(url)
+        def url = "/api/v5/repos/${repoPath}/pulls/${pullRequestID}/comments"
+        Map<String,String > queryParams = [
+            page: "1",
+            per_page: "100"
+        ] as Map<String, String>
+        def response = client.get(url, queryParams)
         return response
     }
     String getPullRequestComment() {
@@ -140,8 +145,12 @@ class GiteeApi {
 
     def getLabels(){
         def tags = []
-        def url = "/api/v5/repos/${repoPath}/pulls/${pullRequestID}/labels?page=1&per_page=100"
-        def resp = client.get(url)
+        def url = "/api/v5/repos/${repoPath}/pulls/${pullRequestID}/labels"
+        Map<String, String> queryParams = [
+            page: "1",
+            per_page: "100"
+        ] as Map<String, String>
+        def resp = client.get(url, queryParams)
         for (element in resp) {
             tags.add(element.name)
         }

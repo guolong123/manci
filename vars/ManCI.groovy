@@ -23,7 +23,6 @@ class ManCI {
     def script
     public String SSH_SECRET_KEY
     public String GITEE_ACCESS_TOKEN_KEY
-    String LOGGER_LEVEL
     Utils utils
     boolean failFast = true
 
@@ -31,6 +30,7 @@ class ManCI {
     ManCI(script, String CIName = null) {
         this.script = script
         this.CIName = CIName ?: (script.params.CIName ? script.env.CINAME : "ManCI")
+        this.script.env.LOGGER_LEVEL = script.env.LOGGER_LEVEL?script.LOGGER_LEVEL:"info"
         this.logger = new Logger(script)
         this.utils = new Utils(script)
     }
@@ -84,8 +84,6 @@ class ManCI {
     }
 
     def withRun(String nodeLabels = null, Closure body) {
-        this.script.env.LOGGER_LEVEL = LOGGER_LEVEL
-
         setParams()
 
         if(this.script.env.noteBody){
@@ -114,7 +112,7 @@ class ManCI {
         script.node(nodeLabels) {
             giteeApi.label(giteeApi.labelRunning)
             script.stage("checkout") {
-                if (LOGGER_LEVEL == "debug"){
+                if (script.env.LOGGER_LEVEL && script.env.LOGGER_LEVEL.toLowerCase() == "debug"){
                     script.sh 'env'
                 }
                 def scmVars = script.checkout script.scm

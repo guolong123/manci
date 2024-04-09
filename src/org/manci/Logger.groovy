@@ -12,7 +12,7 @@ class Logger {
     @NonCPS
     def info(String msg) {
 
-        if (logLevel == "info") {
+        if (logLevel.toLowerCase() == "info") {
             msg = "[INFO] " + msg
             if (script) {
                 script.echo msg
@@ -24,7 +24,7 @@ class Logger {
 
     @NonCPS
     def debug(String msg) {
-        if (["error", "debug"].contains(logLevel)) {
+        if (["error", "debug"].contains(logLevel.toLowerCase())) {
             msg = "[DEBUG] " + msg
             if (script) {
                 script.echo msg
@@ -36,7 +36,7 @@ class Logger {
 
     @NonCPS
     def error(String msg) {
-        if (["info", "error", "debug"].contains(logLevel)) {
+        if (["info", "error", "debug"].contains(logLevel.toLowerCase())) {
             msg = "[ERROR] " + msg
             if (script) {
                 script.echo msg

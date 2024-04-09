@@ -24,33 +24,34 @@ class HttpClient {
         utils = new Utils(script)
     }
 
-    def post(String path, body = null, Map<String, String> customHeaders = [:]) {
-        return request("post", path, body, customHeaders)
+    def post(String path, body = null, Map<String, String> queryParams = [:], Map<String, String> customHeaders = [:]) {
+        return request("post", path, body, customHeaders, queryParams)
     }
 
-    def get(String path, Map<String, String> customHeaders = [:]) {
-        return request("get", path, null, customHeaders)
+    def get(String path,  Map<String, String> queryParams = [:], Map<String, String> customHeaders = [:]) {
+        return request("get", path, null, customHeaders, queryParams)
     }
 
-    def delete(String path, Map<String, String> customHeaders = [:]) {
-        return request("delete", path, null, customHeaders)
+    def delete(String path, Map<String, String> queryParams = [:], Map<String, String> customHeaders = [:]) {
+        return request("delete", path, null, customHeaders, queryParams)
     }
 
-    def put(String path, body = null, Map<String, String> customHeaders = [:]) {
-        return request("put", path, body, customHeaders)
+    def put(String path, body = null, Map<String, String> queryParams = [:], Map<String, String> customHeaders = [:]) {
+        return request("put", path, body, customHeaders, queryParams)
     }
 
-    def patch(String path, body = null, Map<String, String> customHeaders = [:]) {
-        return request("patch", path, body, customHeaders)
+    def patch(String path, body = null, Map<String, String> queryParams = [:], Map<String, String> customHeaders = [:]) {
+        return request("patch", path, body, customHeaders, queryParams)
     }
 
     @NonCPS
-    def request(def method, String path, bodyData = null, Map<String, String> customHeaders = [:]) {
+    def request(def method, String path, bodyData = null, Map<String, String> customHeaders = [:], Map<String, String> queryParams = [:]) {
         HTTPBuilder http = new HTTPBuilder(baseUrl)
         headers.putAll(customHeaders)
         try {
             http.request(Method.valueOf(method.toUpperCase()), ContentType.JSON) { req ->
                 uri.path = path
+                uri.query = queryParams
                 headers = this.headers
 
                 if (bodyData && ["POST", "PUT", "PATCH"].contains(method.toUpperCase())) {
