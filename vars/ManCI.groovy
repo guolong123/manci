@@ -3,9 +3,8 @@ import org.manci.GiteeApi
 import org.manci.Logger
 import org.manci.Utils
 
-
-class ManCI {
-    Map<String, List<Map<String, Object>>> stages = [:]
+class ManCI{
+    transient Map<String, List<Map<String, Object>>> stages = [:]
     boolean isCI = false
     public String CIName = "ManCI V1"
     Table table
@@ -25,7 +24,6 @@ class ManCI {
     public String GITEE_ACCESS_TOKEN_KEY
     Utils utils
     boolean failFast = true
-
 
     ManCI(script, String CIName = null) {
         this.script = script
@@ -80,7 +78,7 @@ class ManCI {
                 "fileMatches": fileMatches,
                 "noteMatches": noteMatches,
                 "mark": mark
-        ])
+        ] as Map<String, Object>)
     }
 
     def withRun(String nodeLabels = null, Closure body) {

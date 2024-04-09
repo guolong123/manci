@@ -11,7 +11,6 @@ class Logger {
 
     @NonCPS
     def info(String msg) {
-
         if (logLevel.toLowerCase() == "info") {
             msg = "[INFO] " + msg
             if (script) {

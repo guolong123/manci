@@ -2,15 +2,19 @@
 
 manci = new ManCI(this)
 
+// 定义参数，这些参数会显示在 jenkins 的参数化构建页面；同时也会显示到 CI 表格下方
 manci.parameters = [
         [defaultValue: "ManCI V1", description: 'CI的名称，显示在状态表格中', name: 'CIName', type: 'string'],
         [choices: ['main', 'develop'], description: '选择要部署的分支', name: 'BRANCH_NAME', type: 'choice']
 ]
 
+// 定义 ssh 密钥，用来拉取git仓库代码。此密钥必须在 Jenkins 的 Credentials 中存在，类型为 ssh username with private key
 manci.SSH_SECRET_KEY = "3ee85ad2-4f01-40f3-930f-64fcd4f3fbfc"
 
+// 定义 gitee 的 access token，用来访问 gitee 相关的 api 接口，此密钥必须在 Jenkins 的 Credentials 中存在，类型为 secret text
 manci.GITEE_ACCESS_TOKEN_KEY = 'guolong-gitee-access-token'
 
+// 定义 logger 的级别，默认为 INFO
 env.LOGGER_LEVEL = "DEBUG"
 
 PR_TITLE_CHECK_REX = /(\[)(feat|fix|build|docs|style|refactor|perf|test|revert|chore|upgrade|devops)((\(.+\))?)\](:)( )(.{1,50})([\s\S]*)$/
@@ -30,7 +34,7 @@ manci.withRun(){
         }
     }
 
-    manci.stage("check-commit",[group: "setup", trigger: ["pr_note", "pr_open"], mark: "[访问地址](#)" ]){
+    manci.stage("check-commit", [group: "setup", trigger: ["pr_note", "pr_open"], mark: "[访问地址](#)" ]){
         commits = sh(script:"git log --left-right --format=%s origin/${env.giteeTargetBranch}...${env.ref}",returnStdout: true)
         echo "commits: ${commits}"
         def matcher = (env.giteePullRequestTitle ==~ PR_TITLE_CHECK_REX)
