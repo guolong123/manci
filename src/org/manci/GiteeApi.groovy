@@ -15,6 +15,7 @@ class GiteeApi {
     public labelFailure = 'ci-failure'
     public labelWaiting = 'ci-waiting'
     public labelRunning = 'ci-running'
+    public labelAbort = 'ci-abort'
 
 
     GiteeApi(script=null, String token=null, String repoPath, String pullRequestID, String CICommentTag) {

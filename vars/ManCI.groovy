@@ -12,7 +12,13 @@ class ManCI {
     Logger logger
     GiteeApi giteeApi
     public List<Map<String, Object>> parameters
-    public String projectDescription
+    public String projectDescription = """
+## 使用小窍门
+* 可以点击状态图标进入构建日志界面
+* 评论`rebuild failure`可以运行所有失败的步骤
+* 评论`rebuild`将以提交时默认行为进行构建
+* 支持评论`rebuild <stageName> ...` 来指定阶段执行，可使用`withAlone=true`，使构建仅执行当前指定的 stage，而不执行其关联的其它 stage。比如镜像已经构建后，部署失败了需要重新部署时，可使用`rebuild deploy withAlone=true`来只运行部署步骤
+"""
     List<String> paramsDescription = []
     def script
     public String SSH_SECRET_KEY
@@ -81,12 +87,7 @@ class ManCI {
         this.script.env.LOGGER_LEVEL = LOGGER_LEVEL
 
         setParams()
-        script.withCredentials([script.string(credentialsId: GITEE_ACCESS_TOKEN_KEY, variable: "GITEE_ACCESS_TOKEN")]) {
-            String repoPath = script.env.giteeTargetNamespace + '/' + script.env.giteeTargetRepoName
-            logger.debug "script.env.GITEE_ACCESS_TOKEN: ${script.env.GITEE_ACCESS_TOKEN}"
-            giteeApi = new GiteeApi(script, "${script.env.GITEE_ACCESS_TOKEN}", repoPath, script.env.giteePullRequestIid, CIName)
-        }
-        giteeApi.label(giteeApi.labelWaiting)
+
         if(this.script.env.noteBody){
             // 当存在这个环境变量时则解析这个 comment，注入 kv到环境变量
             logger.debug("noteBody: ${this.script.env.noteBody}")
@@ -97,6 +98,12 @@ class ManCI {
                 this.script.env.putAt(key, value)
             }
         }
+        script.withCredentials([script.string(credentialsId: GITEE_ACCESS_TOKEN_KEY, variable: "GITEE_ACCESS_TOKEN")]) {
+            String repoPath = script.env.giteeTargetNamespace + '/' + script.env.giteeTargetRepoName
+            logger.debug "script.env.GITEE_ACCESS_TOKEN: ${script.env.GITEE_ACCESS_TOKEN}"
+            giteeApi = new GiteeApi(script, "${script.env.GITEE_ACCESS_TOKEN}", repoPath, script.env.giteePullRequestIid, CIName)
+        }
+        giteeApi.label(giteeApi.labelWaiting)
 
         logger.debug "script.env.ref: ${script.env.ref}"
         if ("${script.env.ref}" != "null") {
@@ -170,6 +177,7 @@ class ManCI {
                                 it.noteMatches as List<String>, failureStages as List<String>)
                         if(!needRun){
                             script.stage(it.name) {
+                                // 标记 stage 为跳过
                                 org.jenkinsci.plugins.pipeline.modeldefinition.Utils.markStageSkippedForConditional(it.name)
                             }
                             buildResult = 3

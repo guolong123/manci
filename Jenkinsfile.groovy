@@ -2,14 +2,6 @@
 
 manci = new ManCI(this)
 
-manci.projectDescription = """
-## 使用小窍门
-* 可以点击状态图标进入构建日志界面
-* 评论`rebuild all`可以运行所有步骤
-* 评论`rebuild failure`可以运行所有失败的步骤
-* 评论`rebuild`将以提交时默认行为进行构建
-"""
-
 manci.parameters = [
         [defaultValue: "ManCI V1", description: 'CI的名称，显示在状态表格中', name: 'CIName', type: 'string'],
         [choices: ['main', 'develop'], description: '选择要部署的分支', name: 'BRANCH_NAME', type: 'choice']
@@ -19,13 +11,17 @@ manci.SSH_SECRET_KEY = "3ee85ad2-4f01-40f3-930f-64fcd4f3fbfc"
 
 manci.GITEE_ACCESS_TOKEN_KEY = 'guolong-gitee-access-token'
 
-manci.LOGGER_LEVEL = "INFO"
+manci.LOGGER_LEVEL = "DEBUG"
 
 PR_TITLE_CHECK_REX = /(\[)(feat|fix|build|docs|style|refactor|perf|test|revert|chore|upgrade|devops)((\(.+\))?)\](:)( )(.{1,50})([\s\S]*)$/
 
 manci.withRun(){
     // 同一个 group 下的 stage 会顺序执行，不同的 group 将会并发执行
-    manci.stage("PR_TITLE_CHECK", [group: "check", trigger: ["pr_note", "pr_open"], mark: "[访问地址](#)" ]){
+    manci.stage("init", [group: "setup", trigger: ["pr_note", "pr_open"], mark: "[访问地址](#)" ]){
+        echo "setup 组中的 stage 将会最先执行"
+    }
+
+    manci.stage("check-pr-title", [group: "setup", trigger: ["pr_note", "pr_open"], mark: "[访问地址](#)" ]){
         def matcher = (env.giteePullRequestTitle ==~ PR_TITLE_CHECK_REX)
         if (matcher != true){
             throw new Exception("PR提交不规范, 内容: ${giteePullRequestTitle}")
@@ -34,7 +30,7 @@ manci.withRun(){
         }
     }
 
-    manci.stage("PR_COMMIT_CHECK",[group: "check", trigger: ["pr_note", "pr_open"], mark: "[访问地址](#)" ]){
+    manci.stage("check-commit",[group: "setup", trigger: ["pr_note", "pr_open"], mark: "[访问地址](#)" ]){
         commits = sh(script:"git log --left-right --format=%s origin/${env.giteeTargetBranch}...${env.ref}",returnStdout: true)
         echo "commits: ${commits}"
         def matcher = (env.giteePullRequestTitle ==~ PR_TITLE_CHECK_REX)
@@ -71,5 +67,9 @@ manci.withRun(){
     }
     manci.stage("always", [group: "group4", trigger: ["always"]]){
         sh 'sleep 9'
+    }
+
+    manci.stage("clean", [group: "teardown", trigger: ["pr_merge"], fileMatches: "'.*'"]){
+        echo "teardown 组中的 stage 将会最后执行"
     }
 }
