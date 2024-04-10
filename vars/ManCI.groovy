@@ -3,6 +3,8 @@ import org.manci.GiteeApi
 import org.manci.Logger
 import org.manci.Utils
 
+import java.util.concurrent.ConcurrentHashMap
+
 class ManCI implements Serializable{
     transient Map<String, List<Map<String, Object>>> stages = [:]
     boolean isCI = false
@@ -25,10 +27,6 @@ class ManCI implements Serializable{
     Utils utils
     boolean failFast = true
 
-    @Override
-    String toString() {
-        return CIName
-    }
 
     ManCI(script, String loggerLevel = "info", String CIName = null) {
         this.script = script
@@ -159,7 +157,7 @@ class ManCI implements Serializable{
     }
 
     def run() {
-        HashMap<String, Object> parallelStage = [:] as HashMap<String, Object>
+        ConcurrentHashMap<String, Object> parallelStage = [:] as ConcurrentHashMap<String, Object>
         Exception error = null
         if (isCI) {
             List<String> stageNames = [] as List<String>
@@ -277,9 +275,10 @@ class ManCI implements Serializable{
             parallelStage['failFast'] = true
         }
         logger.debug("parallelStage Type: ${parallelStage.getClass()}")
+        logger.debug("this: ${this.toString()}")
         parallelStage.each {
             logger.debug("group: ${it.key}, value: ${it.value.toString()}")
-            if (! it.value instanceof boolean ){
+            if (it.key != "failFast" ){
                 Closure body = it.value as Closure
                 logger.debug("body.delegate: ${body.delegate.toString()}")
             }

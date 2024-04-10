@@ -47,28 +47,28 @@ manci.withRun(){
         sh 'sleep 1'
     }
     manci.stage("pr_merge", [group: "group2", trigger: ["pr_merge", "pr_note"], fileMatches: "'Jenkinsfile.groovy'", mark: "[访问地址](#)"]){
-        sh 'sleep 2'
+        sh 'sleep 1'
     }
     manci.stage("pr_push", [group: "group3", trigger: ["pr_push", "pr_note"], fileMatches: "'.*'"]){
-        sh 'sleep 3'
+        sh 'sleep 1'
     }
     manci.stage("env_match", [group: "group3", trigger: ["env_match"],envMatches: [role: "and", condition: ["BRANCH_NAME": "main"]]]){
-        sh 'sleep 6'
+        sh 'sleep 1'
     }
     manci.stage("pr_close", [group: "group3", trigger: ["pr_close"]]){
-        sh 'sleep 5'
+        sh 'sleep 1'
     }
     manci.stage("pr_tested", [group: "group1", trigger: ["pr_tested"]]){
-        sh 'sleep 4'
+        sh 'sleep 1'
     }
     manci.stage("pr_approved", [group: "group2", trigger: ["pr_approved"]]){
-        sh 'sleep 7'
+        sh 'sleep 1'
     }
     manci.stage("pr_open", [group: "group3", trigger: ["pr_open"]]){
-        sh 'sleep 8'
+        sh 'sleep 1'
     }
     manci.stage("always", [group: "group4", trigger: ["always"]]){
-        sh 'sleep 9'
+        sh 'sleep 1'
         echo "always 组中的 stage 总是执行"
     }
     manci.stage("clean", [group: "teardown", trigger: ["pr_merge"], fileMatches: "'.*'"]){
