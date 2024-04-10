@@ -1,6 +1,6 @@
 package org.manci
 
-class GiteeApi {
+class GiteeApi implements Serializable{
     String  baseUrl = "https://gitee.com"
     String token
     String repoPath
@@ -56,7 +56,7 @@ class GiteeApi {
 
     String initComment(String comment){
         def comments = getPullRequestComments()
-        logger.debug("comments: ${comments}")
+//        logger.debug("comments: ${comments}")
         for (element in comments) {
             if (element.body.contains(CICommentTag)){
                 CICommentUrl = element.url

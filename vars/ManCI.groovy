@@ -3,7 +3,7 @@ import org.manci.GiteeApi
 import org.manci.Logger
 import org.manci.Utils
 
-class ManCI{
+class ManCI implements Serializable{
     transient Map<String, List<Map<String, Object>>> stages = [:]
     boolean isCI = false
     public String CIName = "ManCI V1"
@@ -19,16 +19,21 @@ class ManCI{
 * 支持评论`rebuild <stageName> ...` 来指定阶段执行，可使用`withAlone=true`，使构建仅执行当前指定的 stage，而不执行其关联的其它 stage。比如镜像已经构建后，部署失败了需要重新部署时，可使用`rebuild deploy withAlone=true`来只运行部署步骤
 """
     List<String> paramsDescription = []
-    def script
+    transient def script
     public String SSH_SECRET_KEY
     public String GITEE_ACCESS_TOKEN_KEY
     Utils utils
     boolean failFast = true
 
-    ManCI(script, String CIName = null) {
+    @Override
+    String toString() {
+        return CIName
+    }
+
+    ManCI(script, String loggerLevel = "info", String CIName = null) {
         this.script = script
         this.CIName = CIName ?: (script.params.CIName ? script.env.CINAME : "ManCI")
-        this.script.env.LOGGER_LEVEL = script.env.LOGGER_LEVEL?script.LOGGER_LEVEL:"info"
+        this.script.env.LOGGER_LEVEL = loggerLevel
         this.logger = new Logger(script)
         this.utils = new Utils(script)
     }
@@ -80,6 +85,7 @@ class ManCI{
                 "mark": mark
         ] as Map<String, Object>)
     }
+
 
     def withRun(String nodeLabels = null, Closure body) {
         setParams()
@@ -143,6 +149,15 @@ class ManCI{
         }
     }
 
+
+    def stageRun(String stageName, Closure body) {
+        logger.debug("stageRun: ${stageName} start")
+        script.stage(stageName){
+            body.call()
+        }
+        logger.debug("stageRun: ${stageName} done")
+    }
+
     def run() {
         HashMap<String, Object> parallelStage = [:] as HashMap<String, Object>
         Exception error = null
@@ -186,13 +201,15 @@ class ManCI{
                                                    "[${table.RUNNING_LABEL}](${script.env.RUN_DISPLAY_URL} \"点击跳转到 jenkins 构建页面\")",
                                                    "0min0s" + "/" + table.getStageRunTotalTime(it.name as String),
                                                    runCnt, nowTime, runStrategy, it.mark]])
-                                script.stage(it.name) {
-                                    logger.info("stage: ${it.name}")
-                                    it.body.call()
-                                    logger.debug("stage: ${it.name} done")
+                                try {
+                                    stageRun(it.name as String, it.body as Closure)
+                                }catch (NotSerializableException e) {
+                                    error = e as Exception
+                                    logger.debug("[${it.name}] 202: ${e}")
                                 }
+
                                 buildResult = 0
-                                logger.debug("buildResult: ${buildResult}")
+                                logger.debug("[${it.name}] 204: buildResult: ${buildResult}")
                             } catch (org.jenkinsci.plugins.workflow.steps.FlowInterruptedException e) {
                                 logger.error("[${it.name}]: ${e}")
                                 buildResult = 2
@@ -202,11 +219,11 @@ class ManCI{
                                 buildResult = 2
                                 error = e as Exception
                             } catch (NotSerializableException e) {
-                                logger.error("[${it.name}]: ${e}")
-                                buildResult = 0
+                                logger.error("[${it.name}] 213: ${e}")
+                                buildResult = 1
                                 error = e as Exception
                             } catch (Exception e){
-                                logger.error("[${it.name}]: ${e}")
+                                logger.error("[${it.name}] 217: ${e}")
                                 buildResult = 1
                                 error = e as Exception
                             }
@@ -236,7 +253,6 @@ class ManCI{
                             table.addColumns([[it.name, group, "[${table.NOT_NEED_RUN_LABEL}](${script.env.RUN_DISPLAY_URL} \"点击跳转到 jenkins 构建页面\")", elapsedTime, runCnt, nowTime, runStrategy, it.mark]])
                         }
                         giteeApi.comment(table.text)
-                        logger.debug(table.text)
                         if (error){
                             throw error
                         }
@@ -259,6 +275,15 @@ class ManCI{
         }
         if(failFast){
             parallelStage['failFast'] = true
+        }
+        logger.debug("parallelStage Type: ${parallelStage.getClass()}")
+        parallelStage.each {
+            logger.debug("group: ${it.key}, value: ${it.value.toString()}")
+            if (! it.value instanceof boolean ){
+                Closure body = it.value as Closure
+                logger.debug("body.delegate: ${body.delegate.toString()}")
+            }
+
         }
         Closure setupStage = parallelStage.get("setup") as Closure
         Closure teardownStage = parallelStage.get("teardown") as Closure

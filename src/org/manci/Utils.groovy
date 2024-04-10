@@ -3,7 +3,7 @@ package org.manci
 import java.text.SimpleDateFormat
 import groovy.json.JsonSlurperClassic
 
-class Utils {
+class Utils implements Serializable{
     def script
     Logger logger
 
@@ -76,10 +76,8 @@ class Utils {
     }
 
     @NonCPS
-    LinkedHashMap<String, Object> jsonParse(String json) {
+    static LinkedHashMap<String, Object> jsonParse(String json) {
         def parsedJson = new groovy.json.JsonSlurperClassic().parseText(json)
-        logger.debug("jsonParseType: ${parsedJson.getClass()}")
-
         if(parsedJson instanceof groovy.json.internal.LazyMap) {
             return new LinkedHashMap<>(parsedJson as Map<? extends String, ?>)
         }
@@ -138,7 +136,7 @@ class Utils {
                 cnt = this.script.sh(script:"git diff --name-only ${targetBranch}...${sourceBranch} | grep -c ${fileMatches} | xargs echo", returnStdout: true)
             }
         }catch(Exception e){
-            logger.debug("${e}")
+            logger.error("${e}")
         }
         if (Integer.parseInt(cnt.strip()) > 0){
             needRun = true

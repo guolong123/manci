@@ -1,6 +1,6 @@
 @Library('manci')_
 
-manci = new ManCI(this)
+manci = new ManCI(this, "debug")
 
 // 定义参数，这些参数会显示在 jenkins 的参数化构建页面；同时也会显示到 CI 表格下方
 manci.parameters = [
@@ -14,8 +14,6 @@ manci.SSH_SECRET_KEY = "3ee85ad2-4f01-40f3-930f-64fcd4f3fbfc"
 // 定义 gitee 的 access token，用来访问 gitee 相关的 api 接口，此密钥必须在 Jenkins 的 Credentials 中存在，类型为 secret text
 manci.GITEE_ACCESS_TOKEN_KEY = 'guolong-gitee-access-token'
 
-// 定义 logger 的级别，默认为 INFO
-env.LOGGER_LEVEL = "DEBUG"
 
 PR_TITLE_CHECK_REX = /(\[)(feat|fix|build|docs|style|refactor|perf|test|revert|chore|upgrade|devops)((\(.+\))?)\](:)( )(.{1,50})([\s\S]*)$/
 
@@ -71,8 +69,8 @@ manci.withRun(){
     }
     manci.stage("always", [group: "group4", trigger: ["always"]]){
         sh 'sleep 9'
+        echo "always 组中的 stage 总是执行"
     }
-
     manci.stage("clean", [group: "teardown", trigger: ["pr_merge"], fileMatches: "'.*'"]){
         echo "teardown 组中的 stage 将会最后执行"
     }

@@ -7,7 +7,7 @@ import groovyx.net.http.HTTPBuilder
 import groovyx.net.http.ContentType
 import groovyx.net.http.Method
 
-class HttpClient {
+class HttpClient implements Serializable{
     private final String baseUrl
     private final String token
     def script
@@ -60,7 +60,6 @@ class HttpClient {
 
                 // 响应处理
                 response.success = { resp, json ->
-                    logger.debug "Response status with Method/Url: ${req.method}/${uri.toString()} ${resp.statusLine}"
                     // 将响应体转换为JSON对象（如果响应内容是JSON格式）
                     def responseBodyJson
                     if (json instanceof ArrayList) {
@@ -78,13 +77,13 @@ class HttpClient {
 
                 // 错误处理
                 response.failure = { resp, json ->
-                    logger.error "Request failed with Method/URL: ${req.method}/${uri.toString()} and status: ${resp.statusLine}"
-                    logger.error("Request with headers: ${headers}")
-                    logger.error("Response body: ${json}")
+                    script.echo "[ERROR] Request failed with Method/URL: ${req.method}/${uri.toString()} and status: ${resp.statusLine}"
+                    script.echo("[ERROR] Request with headers: ${headers}")
+                    script.echo("[ERROR] Response body: ${json}")
                 }
             }
         } catch (Exception e) {
-            logger.error "An error occurred while making the request: $e"
+            script.echo "[ERROR] An error occurred while making the request: $e"
         }
     }
 }
