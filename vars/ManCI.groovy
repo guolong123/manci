@@ -14,11 +14,14 @@ class ManCI implements Serializable{
     GiteeApi giteeApi
     public List<Map<String, Object>> parameters
     public String projectDescription = """
-## 使用小窍门
-* 可以点击状态图标进入构建日志界面
-* 评论`rebuild failure`可以运行所有失败的步骤
-* 评论`rebuild`将以提交时默认行为进行构建
-* 支持评论`rebuild <stageName> ...` 来指定阶段执行，可使用`withAlone=true`，使构建仅执行当前指定的 stage，而不执行其关联的其它 stage。比如镜像已经构建后，部署失败了需要重新部署时，可使用`rebuild deploy withAlone=true`来只运行部署步骤
+## 指令说明
+**指令**: `rebuild [stageName [stageName...]|failure] [env1=value1 env2=value2...] [withAlone=true|false]`
+**描述**:
+> * 无参数时，按照提交代码时的行为重新构建。
+> * 指定一个或多个 `stage name`（空格分隔），重建指定阶段。
+> * 使用 `rebuild failure` 重建所有失败阶段。
+> * 可选地附加一组环境变量设置（键值对，等号分隔），在重建过程中将其注入到运行时环境中。
+> * 通过添加参数 withAlone=true，确保仅执行当前指定的 stage，而不执行其关联的其他 stage。默认情况下，withAlone=false，即可能执行与指定 stage 关联的其他 stage。
 """
     List<String> paramsDescription = []
     transient def script
@@ -166,7 +169,7 @@ class ManCI implements Serializable{
                     stageNames.add(it.name as String)
                 }
             }
-            table = new Table(script, CIName, "", projectDescription + "\n<details>\n<summary>参数说明:</summary>\n\n" + paramsDescription.join("\n") + "\n</details>", stageNames)
+            table = new Table(script, CIName, "", projectDescription + "\n<details>\n<summary>**参数说明**(点击展开)</summary>\n\n" + paramsDescription.join("\n") + "\n</details>", stageNames)
 
             table.text = giteeApi.initComment(table.text)
             table.tableParse()  // 从已有的评论中解析出table
