@@ -147,6 +147,7 @@ class Utils implements Serializable{
     boolean eventHandlerNote(List<String > triggers, String stageName, List<String> noteMatches = [],List<String> failureStages = [], String fileMatches = "", String targetBranch=null, String sourceBranch = null) {
         boolean needRun = false
         Map<String, Object> commandParse = commandParse(this.script.env.noteBody as String)
+        logger.debug("eventHandlerNote: noteMatches: ${noteMatches}, failureStages: ${failureStages}, fileMatches: ${fileMatches}, targetBranch: ${targetBranch}, sourceBranch: ${sourceBranch}, stageName: ${stageName}")
 
         def stageNames = commandParse.get("args") as List<String>
         noteMatches.add(stageName)

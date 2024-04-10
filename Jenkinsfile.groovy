@@ -14,16 +14,15 @@ manci.SSH_SECRET_KEY = "3ee85ad2-4f01-40f3-930f-64fcd4f3fbfc"
 // 定义 gitee 的 access token，用来访问 gitee 相关的 api 接口，此密钥必须在 Jenkins 的 Credentials 中存在，类型为 secret text
 manci.GITEE_ACCESS_TOKEN_KEY = 'guolong-gitee-access-token'
 
-
 PR_TITLE_CHECK_REX = /(\[)(feat|fix|build|docs|style|refactor|perf|test|revert|chore|upgrade|devops)((\(.+\))?)\](:)( )(.{1,50})([\s\S]*)$/
 
 manci.withRun(){
     // 同一个 group 下的 stage 会顺序执行，不同的 group 将会并发执行
-    manci.stage("init", [group: "setup", trigger: ["pr_note", "pr_open"], mark: "[访问地址](#)" ]){
-        echo "setup 组中的 stage 将会最先执行"
+    manci.stage("init", [group: "before", trigger: ["pr_note", "pr_open"], mark: "[访问地址](#)" ]){
+        manci.giteeApi.resetTest()
     }
 
-    manci.stage("check-pr-title", [group: "setup", trigger: ["pr_note", "pr_open"], mark: "[访问地址](#)" ]){
+    manci.stage("check-pr-title", [group: "before", trigger: ["pr_note", "pr_open"], mark: "[访问地址](#)" ]){
         def matcher = (env.giteePullRequestTitle ==~ PR_TITLE_CHECK_REX)
         if (matcher != true){
             throw new Exception("PR提交不规范, 内容: ${giteePullRequestTitle}")
@@ -32,7 +31,7 @@ manci.withRun(){
         }
     }
 
-    manci.stage("check-commit", [group: "setup", trigger: ["pr_note", "pr_open"], mark: "[访问地址](#)" ]){
+    manci.stage("check-commit", [group: "before", trigger: ["pr_note", "pr_open"], mark: "[访问地址](#)" ]){
         commits = sh(script:"git log --left-right --format=%s origin/${env.giteeTargetBranch}...${env.ref}",returnStdout: true)
         echo "commits: ${commits}"
         def matcher = (env.giteePullRequestTitle ==~ PR_TITLE_CHECK_REX)
@@ -71,7 +70,13 @@ manci.withRun(){
         sh 'sleep 1'
         echo "always 组中的 stage 总是执行"
     }
-    manci.stage("clean", [group: "teardown", trigger: ["pr_merge"], fileMatches: "'.*'"]){
-        echo "teardown 组中的 stage 将会最后执行"
+    manci.stage("on-pass", [group: "after", trigger: ["pr_note"], condition: 'success']){
+        manci.giteeApi.testPass()
+    }
+    manci.stage("on-failure", [group: "after", trigger: ["pr_note"], condition: 'failure']){
+        echo "run failure"
+    }
+    manci.stage("on-always", [group: "after", trigger: ["pr_note"], condition: 'always']){
+        echo "run always"
     }
 }

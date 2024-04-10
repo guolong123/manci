@@ -5,7 +5,7 @@ import org.manci.Utils
 
 import java.util.concurrent.ConcurrentHashMap
 
-class ManCI implements Serializable{
+class ManCI implements Serializable {
     transient Map<String, List<Map<String, Object>>> stages = [:]
     boolean isCI = false
     public String CIName = "ManCI V1"
@@ -29,7 +29,6 @@ class ManCI implements Serializable{
     public String GITEE_ACCESS_TOKEN_KEY
     Utils utils
     boolean failFast = true
-
 
     ManCI(script, String loggerLevel = "info", String CIName = null) {
         this.script = script
@@ -68,22 +67,25 @@ class ManCI implements Serializable{
 
     def stage(String stageName, Map<String, Object> stageConfig, Closure body) {
         def groupName = stageConfig.get("group", "default")
-        def trigger = stageConfig.get("trigger", "always") // always, pr_merge, pr_open, pr_close, pr_push, pr_test_pass, pr_review_pass, env_match, file_match
+        def trigger = stageConfig.get("trigger", "always")
+        // always, pr_merge, pr_open, pr_close, pr_push, pr_test_pass, pr_review_pass, env_match, file_match
         Map<String, Object> envMatches = stageConfig.get("envMatches", [:]) as Map<String, Object>
         String fileMatches = stageConfig.get("fileMatches", "") as String
         List<String> noteMatches = stageConfig.get("noteMatches", []) as List<String>
         String mark = stageConfig.get("mark", "") as String
+        def condition = stageConfig.get("condition", null)
         if (!stages.containsKey(groupName)) {
             stages[groupName as String] = []
         }
         stages[groupName].add([
-                "name": stageName,
-                "trigger": trigger,
-                "body": body,
-                "envMatches": envMatches,
+                "name"       : stageName,
+                "trigger"    : trigger,
+                "body"       : body,
+                "envMatches" : envMatches,
                 "fileMatches": fileMatches,
                 "noteMatches": noteMatches,
-                "mark": mark
+                "mark"       : mark,
+                "condition"  : condition
         ] as Map<String, Object>)
     }
 
@@ -91,12 +93,12 @@ class ManCI implements Serializable{
     def withRun(String nodeLabels = null, Closure body) {
         setParams()
 
-        if(this.script.env.noteBody){
+        if (this.script.env.noteBody) {
             // 当存在这个环境变量时则解析这个 comment，注入 kv到环境变量
             logger.debug("noteBody: ${this.script.env.noteBody}")
             def commands = this.utils.commandParse(this.script.env.noteBody as String)
             def envArgs = commands.get("kwargs")
-            envArgs.each{key, value ->
+            envArgs.each { key, value ->
                 logger.debug("${key}: ${value}")
                 this.script.env.putAt(key, value)
             }
@@ -106,18 +108,17 @@ class ManCI implements Serializable{
             logger.debug "script.env.GITEE_ACCESS_TOKEN: ${script.env.GITEE_ACCESS_TOKEN}"
             giteeApi = new GiteeApi(script, "${script.env.GITEE_ACCESS_TOKEN}", repoPath, script.env.giteePullRequestIid, CIName)
         }
-        giteeApi.label(giteeApi.labelWaiting)
-
         logger.debug "script.env.ref: ${script.env.ref}"
         if ("${script.env.ref}" != "null") {
             this.isCI = true
         }
         logger.debug "SSH_SECRET_KEY: ${SSH_SECRET_KEY}"
         logger.debug "isCI: ${this.isCI}"
+        giteeApi.label(giteeApi.labelWaiting)
         script.node(nodeLabels) {
             giteeApi.label(giteeApi.labelRunning)
             script.stage("checkout") {
-                if (script.env.LOGGER_LEVEL && script.env.LOGGER_LEVEL.toLowerCase() == "debug"){
+                if (script.env.LOGGER_LEVEL && script.env.LOGGER_LEVEL.toLowerCase() == "debug") {
                     script.sh 'env'
                 }
                 def scmVars = script.checkout script.scm
@@ -139,9 +140,9 @@ class ManCI implements Serializable{
                 }
             }
             body.call()
-            try{
+            try {
                 this.run()
-            }catch (Exception e){
+            } catch (Exception e) {
                 giteeApi.label(giteeApi.labelFailure)
                 throw e
             }
@@ -153,7 +154,7 @@ class ManCI implements Serializable{
 
     def stageRun(String stageName, Closure body) {
         logger.debug("stageRun: ${stageName} start")
-        script.stage(stageName){
+        script.stage(stageName) {
             body.call()
         }
         logger.debug("stageRun: ${stageName} done")
@@ -187,24 +188,32 @@ class ManCI implements Serializable{
                         def needRun = utils.needRunStage(it.name as String, "gitee", it.trigger as List<String>,
                                 it.envMatches as Map<String, Object>, it.fileMatches as String,
                                 it.noteMatches as List<String>, failureStages as List<String>)
-                        if(!needRun){
+                        if (!needRun) {
                             script.stage(it.name) {
                                 // 标记 stage 为跳过
                                 org.jenkinsci.plugins.pipeline.modeldefinition.Utils.markStageSkippedForConditional(it.name)
                             }
                             buildResult = 3
-                        }else{
+                        } else {
                             nowTime = utils.getNowTime()
                             runCnt = table.getStageRunTotal(it.name as String) + 1
                             logger.debug("needRunStage: ${it.name}")
                             try {
                                 table.addColumns([[it.name, group,
                                                    "[${table.RUNNING_LABEL}](${script.env.RUN_DISPLAY_URL} \"点击跳转到 jenkins 构建页面\")",
-                                                   "0min0s" + "/" + table.getStageRunTotalTime(it.name as String),
-                                                   runCnt, nowTime, runStrategy, it.mark]])
+                                                   "0min0s" + "/" + table.getStageRunTotalTime(it.name as String), runCnt, nowTime, runStrategy, it.mark]])
                                 try {
-                                    stageRun(it.name as String, it.body as Closure)
-                                }catch (NotSerializableException e) {
+                                    if (it.condition == "success" && ! error){
+                                        stageRun(it.name as String, it.body as Closure)
+                                    }else if (it.condition == "failure" && error){
+                                        stageRun(it.name as String, it.body as Closure)
+                                    }else if (it.condition == "always"){
+                                        stageRun(it.name as String, it.body as Closure)
+                                    }else if (! it.condition){
+                                        stageRun(it.name as String, it.body as Closure)
+                                    }
+
+                                } catch (NotSerializableException e) {
                                     error = e as Exception
                                     logger.debug("[${it.name}] 202: ${e}")
                                 }
@@ -223,7 +232,7 @@ class ManCI implements Serializable{
                                 logger.error("[${it.name}] 213: ${e}")
                                 buildResult = 1
                                 error = e as Exception
-                            } catch (Exception e){
+                            } catch (Exception e) {
                                 logger.error("[${it.name}] 217: ${e}")
                                 buildResult = 1
                                 error = e as Exception
@@ -232,11 +241,11 @@ class ManCI implements Serializable{
                             String OneTime = utils.timestampConvert(timeForOne)
                             String runTotalTimeStr
                             long runTotalTime
-                            if (runCnt > 1){
+                            if (runCnt > 1) {
                                 runTotalTimeStr = table.getStageRunTotalTime(it.name as String)
                                 runTotalTime = utils.reverseTimestampConvert(runTotalTimeStr) + timeForOne
 
-                            }else{
+                            } else {
                                 runTotalTimeStr = OneTime
                                 runTotalTime = utils.reverseTimestampConvert(runTotalTimeStr)
 
@@ -250,11 +259,11 @@ class ManCI implements Serializable{
                             table.addColumns([[it.name, group, "[${table.FAILURE_LABEL}](${script.env.RUN_DISPLAY_URL} \"点击跳转到 jenkins 构建页面\")", elapsedTime, runCnt, nowTime, runStrategy, it.mark]])
                         } else if (buildResult == 2) {
                             table.addColumns([[it.name, group, "[${table.ABORTED_LABEL}](${script.env.RUN_DISPLAY_URL} \"点击跳转到 jenkins 构建页面\")", elapsedTime, runCnt, nowTime, runStrategy, it.mark]])
-                        }else if (buildResult == 3) {
+                        } else if (buildResult == 3) {
                             table.addColumns([[it.name, group, "[${table.NOT_NEED_RUN_LABEL}](${script.env.RUN_DISPLAY_URL} \"点击跳转到 jenkins 构建页面\")", elapsedTime, runCnt, nowTime, runStrategy, it.mark]])
                         }
                         giteeApi.comment(table.text)
-                        if (error){
+                        if (error) {
                             throw error
                         }
                     }
@@ -266,45 +275,57 @@ class ManCI implements Serializable{
                     v.each {
                         def needRun = utils.needRunStageNotCI(it)
                         script.stage(it.name) {
-                            if (needRun){
-                                it.body.call()
+                            if (needRun) {
+                                try {
+                                    stageRun(it.name as String, it.body as Closure)
+                                } catch (Exception e) {
+                                    error = e as Exception
+                                    logger.debug("[${it.name}] 202: ${e}")
+                                }
                             }
                         }
                     }
                 }
             }
         }
-        if(failFast){
+        if (failFast) {
             parallelStage['failFast'] = true
         }
         logger.debug("parallelStage Type: ${parallelStage.getClass()}")
         logger.debug("this: ${this.toString()}")
         parallelStage.each {
             logger.debug("group: ${it.key}, value: ${it.value.toString()}")
-            if (it.key != "failFast" ){
+            if (it.key != "failFast") {
                 Closure body = it.value as Closure
                 logger.debug("body.delegate: ${body.delegate.toString()}")
             }
 
         }
-        Closure setupStage = parallelStage.get("setup") as Closure
-        Closure teardownStage = parallelStage.get("teardown") as Closure
-        if (setupStage){
-            parallelStage.remove("setup")
-            setupStage.call()
+        Closure beforeStage = parallelStage.get("before") as Closure
+        Closure afterStage = parallelStage.get("after") as Closure
+        if (beforeStage) {
+            parallelStage.remove("before")
+            beforeStage.call()
         }
-        if (teardownStage){
-            parallelStage.remove("teardown")
-        }
-
-        script.parallel parallelStage
-
-        if (teardownStage){
-            teardownStage.call()
+        if (afterStage) {
+            parallelStage.remove("after")
         }
 
-        if (!table.isSuccessful()){
-            throw new Exception("存在未成功的 stage，此次构建将以失败状态退出")
+        try {
+            script.parallel parallelStage
+        } catch (Exception e) {
+            error = e as Exception
+        }
+
+        if (!table.isSuccessful()) {
+            error = Exception("存在未成功的 stage，此次构建将以失败状态退出")
+        }
+        if (afterStage) {
+            afterStage.call()
+        }
+        if (error) {
+            logger.error("ManCI Finished with error: ${error}")
+            throw error
         }
         logger.info "ManCI Finished"
     }

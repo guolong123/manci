@@ -10,7 +10,7 @@ class Logger implements Serializable{
     }
 
     def info(String msg) {
-        if (["info", "debug"].contains(logLevel.toLowerCase())) { // 修改了此处的条件判断
+        if (["info", "debug"].contains(logLevel.toLowerCase())) {
             msg = "[INFO] " + msg
             if (script) {
                 script.echo msg
@@ -21,7 +21,7 @@ class Logger implements Serializable{
     }
 
     def debug(String msg) {
-        if (logLevel.toLowerCase() == "debug") { // 修改了此处的条件判断
+        if (logLevel.toLowerCase() == "debug") {
             msg = "[DEBUG] " + msg
             if (script) {
                 script.echo msg

@@ -3,7 +3,7 @@ package org.manci
 
 class Table implements Serializable{
     String tableTag = "MANCI V1"
-    def tableHeader = ["检查项", "[分组](# \"除 setup 和 teardown 组以外，分组相同的 stage 将会顺序执行，分组不同的 stage 将会并发执行。setup 组会最先执行，teardown 组会最后执行。\")", "检查状态", "执行耗时", "执行次数", "执行耗时", "触发策略", "备注"]
+    def tableHeader = ["检查项", "[分组](# \"分组相同的 stage 将会顺序执行，分组不同的 stage 将会并发执行。另外有三个特殊组：before, after; before 组会最先执行，after 组会最后执行。\")", "检查状态", "执行耗时", "执行次数", "执行耗时", "触发策略", "备注"]
     public String text = ""
     def commentBody = ""
     def commentInfo = ""
@@ -79,6 +79,9 @@ class Table implements Serializable{
                 runTotal = t[4]
             }
         }
+        if (! runTotal) {
+            runTotal = "0"
+        }
         try {
             num = runTotal.toInteger()
 
@@ -107,10 +110,11 @@ class Table implements Serializable{
     def getFailureStages() {
         def failureStages = []
         this.table.columns.each { t ->
-            if (t[1].contains(FAILURE_LABEL) || t[1].contains(ABORTED_LABEL)) {
+            if (t[2].contains(FAILURE_LABEL) || t[2].contains(ABORTED_LABEL)) {
                 failureStages.add(t[0])
             }
         }
+        logger.debug("failureStages: ${failureStages}")
         return failureStages
     }
 
