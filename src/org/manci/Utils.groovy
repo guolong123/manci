@@ -20,7 +20,7 @@ class Utils implements Serializable{
 
     boolean needRunStage(String stageName, String ciType="gitee", List<String> trigger,Map<String, Object> envMatches = [:],
                          String  fileMatches = "",
-                         List<String> noteMatches = [], List<String> failureStages = []) {
+                         List<String> noteMatches = [], List<String> failureStages = [], String condition = null, Exception error =null) {
         /* trigger options:
            always: 总是触发
            pr_merge: 当 PR 合并时触发
@@ -34,7 +34,7 @@ class Utils implements Serializable{
         */
         boolean needRun = false
         if (ciType == "gitee"){
-            needRun = giteeCITrigger(stageName, trigger, envMatches, fileMatches, noteMatches, failureStages)
+            needRun = giteeCITrigger(stageName, trigger, envMatches, fileMatches, noteMatches, failureStages, condition, error)
         }
         return needRun
     }
@@ -235,7 +235,7 @@ class Utils implements Serializable{
 
     boolean giteeCITrigger(String stageName, List<String> trigger, Map<String, Object> envMatches = [:],
                            String  fileMatches = "",
-                           List<String> noteMatches = [], List<String> failureStages = []) {
+                           List<String> noteMatches = [], List<String> failureStages = [], String condition = null, Exception error=null) {
         boolean needRun = false
         Map<String, Object> jsonBody = jsonParse(this.script.env.jsonbody as String) as Map<String, Object>
         if (trigger.contains("always")){
@@ -290,6 +290,11 @@ class Utils implements Serializable{
         if (trigger.contains("env_match")) {
             needRun = eventHandlerEnv(envMatches)
             logger.debug("eventHandlerEnv: env_match, needRun: ${needRun}")
+        }
+        if (needRun && condition == "success" && error){
+            needRun = false
+        }else if (needRun && condition == "failure" && ! error){
+            needRun = false
         }
         return needRun
 

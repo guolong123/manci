@@ -185,9 +185,10 @@ class ManCI implements Serializable {
                         Integer buildResult // 0: success, 1: failure, 2: aborted, 3: skip
                         List<String> failureStages = table.getFailureStages()
                         long startTime = System.currentTimeMillis()
+                        logger.debug("error: ${error}")
                         def needRun = utils.needRunStage(it.name as String, "gitee", it.trigger as List<String>,
                                 it.envMatches as Map<String, Object>, it.fileMatches as String,
-                                it.noteMatches as List<String>, failureStages as List<String>)
+                                it.noteMatches as List<String>, failureStages as List<String>, it.condition as String, error)
                         if (!needRun) {
                             script.stage(it.name) {
                                 // 标记 stage 为跳过
@@ -203,15 +204,7 @@ class ManCI implements Serializable {
                                                    "[${table.RUNNING_LABEL}](${script.env.RUN_DISPLAY_URL} \"点击跳转到 jenkins 构建页面\")",
                                                    "0min0s" + "/" + table.getStageRunTotalTime(it.name as String), runCnt, nowTime, runStrategy, it.mark]])
                                 try {
-                                    if (it.condition == "success" && ! error){
-                                        stageRun(it.name as String, it.body as Closure)
-                                    }else if (it.condition == "failure" && error){
-                                        stageRun(it.name as String, it.body as Closure)
-                                    }else if (it.condition == "always"){
-                                        stageRun(it.name as String, it.body as Closure)
-                                    }else if (! it.condition){
-                                        stageRun(it.name as String, it.body as Closure)
-                                    }
+                                    stageRun(it.name as String, it.body as Closure)
 
                                 } catch (NotSerializableException e) {
                                     error = e as Exception
