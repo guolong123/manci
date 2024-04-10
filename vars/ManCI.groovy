@@ -169,7 +169,7 @@ class ManCI implements Serializable{
                     stageNames.add(it.name as String)
                 }
             }
-            table = new Table(script, CIName, "", projectDescription + "\n<details>\n<summary>**参数说明**(点击展开)</summary>\n\n" + paramsDescription.join("\n") + "\n</details>", stageNames)
+            table = new Table(script, CIName, "", projectDescription + "\n<details>\n<summary><b>参数说明</b>(点击展开)</summary>\n\n" + paramsDescription.join("\n") + "\n</details>", stageNames)
 
             table.text = giteeApi.initComment(table.text)
             table.tableParse()  // 从已有的评论中解析出table
