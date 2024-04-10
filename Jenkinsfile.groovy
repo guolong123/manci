@@ -70,13 +70,13 @@ manci.withRun(){
         sh 'sleep 1'
         echo "always 组中的 stage 总是执行"
     }
-    manci.stage("on-pass", [group: "after", trigger: ["pr_note"], condition: 'success']){
+    manci.stage("on-pass", [group: "after", trigger: ["always"], condition: 'success']){
         manci.giteeApi.testPass()
     }
-    manci.stage("on-failure", [group: "after", trigger: ["pr_note"], condition: 'failure']){
+    manci.stage("on-failure", [group: "after", trigger: ["always"], condition: 'failure']){
         echo "run failure"
     }
-    manci.stage("on-always", [group: "after", trigger: ["pr_note"], condition: 'always']){
+    manci.stage("on-always", [group: "after", trigger: ["always"], condition: 'always']){
         echo "run always"
     }
 }
