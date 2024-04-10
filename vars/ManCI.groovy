@@ -2,6 +2,7 @@ import org.manci.Table
 import org.manci.GiteeApi
 import org.manci.Logger
 import org.manci.Utils
+import org.manci.Event
 
 import java.util.concurrent.ConcurrentHashMap
 
@@ -29,6 +30,7 @@ class ManCI implements Serializable {
     public String GITEE_ACCESS_TOKEN_KEY
     Utils utils
     boolean failFast = true
+    Event event
 
     ManCI(script, String loggerLevel = "info", String CIName = null) {
         this.script = script
@@ -36,6 +38,7 @@ class ManCI implements Serializable {
         this.script.env.LOGGER_LEVEL = loggerLevel
         this.logger = new Logger(script)
         this.utils = new Utils(script)
+        this.event = new Event(script)
     }
 
     def setParams() {
@@ -73,7 +76,7 @@ class ManCI implements Serializable {
         String fileMatches = stageConfig.get("fileMatches", "") as String
         List<String> noteMatches = stageConfig.get("noteMatches", []) as List<String>
         String mark = stageConfig.get("mark", "") as String
-        def condition = stageConfig.get("condition", null)
+        boolean fastFail = stageConfig.get("fastFail", true) as boolean
         if (!stages.containsKey(groupName)) {
             stages[groupName as String] = []
         }
@@ -85,7 +88,7 @@ class ManCI implements Serializable {
                 "fileMatches": fileMatches,
                 "noteMatches": noteMatches,
                 "mark"       : mark,
-                "condition"  : condition
+                "fastFail"   : fastFail
         ] as Map<String, Object>)
     }
 
@@ -178,7 +181,7 @@ class ManCI implements Serializable {
                 parallelStage[group] = {
                     st.each {
                         it.noteMatches.add("rebuild ${it.name}")
-                        String runStrategy = utils.getStageTrigger(it.trigger as List<String>, giteeApi as GiteeApi, it as Map<String, Object>)
+                        String runStrategy = event.getStageTrigger(it.trigger as List<String>, giteeApi as GiteeApi, it as Map<String, Object>)
                         String elapsedTime = ""
                         String nowTime = ""
                         Integer runCnt = 0
@@ -186,9 +189,7 @@ class ManCI implements Serializable {
                         List<String> failureStages = table.getFailureStages()
                         long startTime = System.currentTimeMillis()
                         logger.debug("error: ${error}")
-                        def needRun = utils.needRunStage(it.name as String, "gitee", it.trigger as List<String>,
-                                it.envMatches as Map<String, Object>, it.fileMatches as String,
-                                it.noteMatches as List<String>, failureStages as List<String>, it.condition as String, error)
+                        def needRun = event.needRunStage(it, "gitee", failureStages as List<String>, error)
                         if (!needRun) {
                             script.stage(it.name) {
                                 // 标记 stage 为跳过
@@ -203,14 +204,7 @@ class ManCI implements Serializable {
                                 table.addColumns([[it.name, group,
                                                    "[${table.RUNNING_LABEL}](${script.env.RUN_DISPLAY_URL} \"点击跳转到 jenkins 构建页面\")",
                                                    "0min0s" + "/" + table.getStageRunTotalTime(it.name as String), runCnt, nowTime, runStrategy, it.mark]])
-                                try {
-                                    stageRun(it.name as String, it.body as Closure)
-
-                                } catch (NotSerializableException e) {
-                                    error = e as Exception
-                                    logger.debug("[${it.name}] 202: ${e}")
-                                }
-
+                                stageRun(it.name as String, it.body as Closure)
                                 buildResult = 0
                                 logger.debug("[${it.name}] 204: buildResult: ${buildResult}")
                             } catch (org.jenkinsci.plugins.workflow.steps.FlowInterruptedException e) {
@@ -256,7 +250,8 @@ class ManCI implements Serializable {
                             table.addColumns([[it.name, group, "[${table.NOT_NEED_RUN_LABEL}](${script.env.RUN_DISPLAY_URL} \"点击跳转到 jenkins 构建页面\")", elapsedTime, runCnt, nowTime, runStrategy, it.mark]])
                         }
                         giteeApi.comment(table.text)
-                        if (error) {
+                        if (error && it.fastFail as boolean) {
+                            logger.error("[${it.name}] 258: ${error}")
                             throw error
                         }
                     }
@@ -266,7 +261,7 @@ class ManCI implements Serializable {
             stages.each { k, v ->
                 parallelStage[k] = {
                     v.each {
-                        def needRun = utils.needRunStageNotCI(it)
+                        def needRun = event.needRunStageNotCI(it, error)
                         script.stage(it.name) {
                             if (needRun) {
                                 try {
@@ -284,16 +279,7 @@ class ManCI implements Serializable {
         if (failFast) {
             parallelStage['failFast'] = true
         }
-        logger.debug("parallelStage Type: ${parallelStage.getClass()}")
-        logger.debug("this: ${this.toString()}")
-        parallelStage.each {
-            logger.debug("group: ${it.key}, value: ${it.value.toString()}")
-            if (it.key != "failFast") {
-                Closure body = it.value as Closure
-                logger.debug("body.delegate: ${body.delegate.toString()}")
-            }
 
-        }
         Closure beforeStage = parallelStage.get("before") as Closure
         Closure afterStage = parallelStage.get("after") as Closure
         if (beforeStage) {
@@ -304,15 +290,17 @@ class ManCI implements Serializable {
             parallelStage.remove("after")
         }
 
+
         try {
             script.parallel parallelStage
         } catch (Exception e) {
+            logger.error("parallel with error: ${e}")
             error = e as Exception
         }
-
-        if (!table.isSuccessful()) {
-            error = Exception("存在未成功的 stage，此次构建将以失败状态退出")
+        if (!error && !table.isSuccessful()) {
+            error = new Exception("存在未成功的 stage，此次构建将以失败状态退出")
         }
+
         if (afterStage) {
             afterStage.call()
         }

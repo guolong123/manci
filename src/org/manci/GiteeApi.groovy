@@ -55,8 +55,8 @@ class GiteeApi implements Serializable{
     }
 
     String initComment(String comment){
+        logger.debug("initComment: ...")
         def comments = getPullRequestComments()
-//        logger.debug("comments: ${comments}")
         for (element in comments) {
             if (element.body.contains(CICommentTag)){
                 CICommentUrl = element.url
@@ -73,6 +73,7 @@ class GiteeApi implements Serializable{
     }
 
     String comment(String comment){
+        logger.debug("comment: ...")
         def comments = getPullRequestComments()
         for (element in comments) {
             if (element.body.contains(CICommentTag)){
@@ -129,6 +130,7 @@ class GiteeApi implements Serializable{
     }
 
     def addLabel(labelName){
+        logger.debug("addLabel: ${labelName}")
         def url = "/api/v5/repos/${repoPath}/pulls/${pullRequestID}/labels"
         List<String> data = [
                 labelName
@@ -138,12 +140,14 @@ class GiteeApi implements Serializable{
     }
 
     def deleteLabel(labelNames){
+        logger.debug("deleteLabel: ${labelNames}")
         def url = "/api/v5/repos/${repoPath}/pulls/${pullRequestID}/labels/${labelNames}"
         def response = client.delete(url)
         return response
     }
 
     def getLabels(){
+        logger.debug("getLabels: ...")
         def tags = []
         def url = "/api/v5/repos/${repoPath}/pulls/${pullRequestID}/labels"
         Map<String, String> queryParams = [
@@ -163,6 +167,7 @@ class GiteeApi implements Serializable{
     }
 
     def testPass(){
+        logger.debug("testPass: ...")
         def url = "/api/v5/repos/${repoPath}/pulls/${pullRequestID}/test"
         Map<String, Object> data = [
             force: false
@@ -227,6 +232,7 @@ class GiteeApi implements Serializable{
     }
 
     def resetTest(){
+        logger.debug("resetTest: ...")
         // 取消用户审查状态（将审查通过改成未审查）
         def url = "/api/v5/repos/${repoPath}/pulls/${pullRequestID}/testers"
         Map<String, Object> data = [
