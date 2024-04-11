@@ -10,9 +10,10 @@ class ManCI implements Serializable {
     transient Map<String, List<Map<String, Object>>> stages = [:]
     boolean isCI = false
     public String CIName = "ManCI V1"
-    Table table
+    Table table = null
     Logger logger
     GiteeApi giteeApi
+    String instructionPrefix = "run"
     public List<Map<String, Object>> parameters
     public String projectDescription = """
 ## 指令说明
@@ -32,13 +33,20 @@ class ManCI implements Serializable {
     boolean failFast = true
     Event event
 
-    ManCI(script, String loggerLevel = "info", String CIName = null) {
+    ManCI(script, String loggerLevel = "info", String CIName = null, String instructionPrefix = "run") {
         this.script = script
-        this.CIName = CIName ?: (script.params.CIName ? script.env.CINAME : "ManCI")
+        if (CIName) {
+            this.CIName = CIName
+        }
         this.script.env.LOGGER_LEVEL = loggerLevel
         this.logger = new Logger(script)
         this.utils = new Utils(script)
-        this.event = new Event(script)
+        if (instructionPrefix){
+            this.instructionPrefix = instructionPrefix
+        }
+
+        this.event = new Event(script, this.instructionPrefix)
+
     }
 
     def setParams() {
@@ -112,12 +120,12 @@ class ManCI implements Serializable {
             giteeApi = new GiteeApi(script, "${script.env.GITEE_ACCESS_TOKEN}", repoPath, script.env.giteePullRequestIid, CIName)
         }
         logger.debug "script.env.ref: ${script.env.ref}"
-        if ("${script.env.ref}" != "null") {
+        if ("${script.env.ref}" != "null" && script.env.giteeActionType != "PUSH") {
             this.isCI = true
         }
         logger.debug "SSH_SECRET_KEY: ${SSH_SECRET_KEY}"
         logger.debug "isCI: ${this.isCI}"
-        giteeApi.label(giteeApi.labelWaiting)
+
         script.node(nodeLabels) {
             giteeApi.label(giteeApi.labelRunning)
             script.stage("checkout") {
@@ -125,21 +133,29 @@ class ManCI implements Serializable {
                     script.sh 'env'
                 }
                 def scmVars = script.checkout script.scm
+                scmVars.each {
+                    logger.debug("${it.key}: ${it.value}")
+                }
+
                 if (this.isCI) {
+                    giteeApi.label(giteeApi.labelWaiting)
                     logger.debug "checkout: url ${script.env.giteeTargetRepoSshUrl}, branch: ${script.env.ref}"
+
                     script.checkout([$class           : 'GitSCM', branches: [[name: script.env.ref]], extensions: [],
                                      userRemoteConfigs: [[credentialsId: SSH_SECRET_KEY,
-                                                          url          : "${script.env.giteeTargetRepoSshUrl}"]]
-                    ])
+                                                          url          : "${script.env.giteeTargetRepoSshUrl}"]]])
+
+
                 } else {
-                    if (script.env.BRANCH_NAME) {
-                        def gitUrl = scmVars.GIT_URL
-                        script.checkout([$class           : 'GitSCM',
-                                         branches         : [[name: script.env.BRANCH_NAME]], extensions: [],
-                                         userRemoteConfigs: [[credentialsId: SSH_SECRET_KEY,
-                                                              url          : gitUrl]]
-                        ])
+                    if (!script.env.BRANCH_NAME) {
+                        script.env.BRANCH_NAME = scmVars.GIT_BRANCH
                     }
+                    def gitUrl = scmVars.GIT_URL
+                    script.checkout([$class           : 'GitSCM',
+                                     branches         : [[name: script.env.BRANCH_NAME]], extensions: [],
+                                     userRemoteConfigs: [[credentialsId: SSH_SECRET_KEY,
+                                                          url          : gitUrl]]
+                    ])
                 }
             }
             body.call()
@@ -297,13 +313,14 @@ class ManCI implements Serializable {
             logger.error("parallel with error: ${e}")
             error = e as Exception
         }
-        if (!error && !table.isSuccessful()) {
-            error = new Exception("存在未成功的 stage，此次构建将以失败状态退出")
-        }
 
         if (afterStage) {
             afterStage.call()
         }
+        if (!error && table && ! table.isSuccessful()) {
+            error = new Exception("存在未成功的 stage，此次构建将以失败状态退出")
+        }
+
         if (error) {
             logger.error("ManCI Finished with error: ${error}")
             throw error

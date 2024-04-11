@@ -3,10 +3,16 @@ package org.manci
 class Event {
     def script
     Logger logger
+    String instructionPrefix
 
-    Event(script) {
+    Event(script, String instructionPrefix = null) {
         this.script = script
         logger = new Logger(script)
+        if (instructionPrefix){
+            this.instructionPrefix = instructionPrefix
+        } else {
+            this.instructionPrefix = "run"
+        }
     }
 
     def utils = new Utils(script)
@@ -30,36 +36,45 @@ class Event {
         return needRun
     }
 
-    static String getStageTrigger(List<String> trigger, GiteeApi giteeApi, Map<String, Object> stage) {
+    static String getStageTrigger(List<String> triggers, GiteeApi giteeApi, Map<String, Object> stage) {
         String runStrategy = ""
 
-        trigger.each { tg ->
-            if (tg == "pr_note") {
+        triggers.each { trigger ->
+            if (trigger == "OnComment") {
                 runStrategy += "[:fa-pencil:](#note_${giteeApi.CICommentID} \"该Stage可通过评论${stage.noteMatches.collect { it.replace('|', '\\\\|') }}触发\") "
             }
-            if (tg == "pr_push") {
+            if (trigger == "OnPush") {
                 runStrategy += "[:fa-paypal:](#note_${giteeApi.CICommentID} \"该Stage可在推送代码匹配正则${stage.fileMatches.replace('\\|', '\\\\|')}时自动触发\") "
             }
-            if (tg == "pr_merge") {
+            if(trigger == "OnUpdate"){
+                runStrategy += "[:fa-refresh:](#note_${giteeApi.CICommentID} \"该Stage可在代码更新时自动触发\") "
+            }
+            if (trigger == "OnMerge") {
                 runStrategy += "[:fa-maxcdn:](#note_${giteeApi.CICommentID} \"该Stage可在合并代码匹配正则${stage.fileMatches.replace('\\|', '\\\\|')}时自动触发\") "
             }
-            if (tg == "env_match") {
+            if (trigger == "OnEnv") {
                 runStrategy += "[:fa-list:](#note_${giteeApi.CICommentID} \"该Stage可在环境变量匹配时触发: ${stage.envMatches}\") "
             }
-            if (tg == "always") {
+            if (trigger == "Always") {
                 runStrategy += "[:fa-font:](#note_${giteeApi.CICommentID} \"该Stage无论如何都会触发\") "
             }
-            if (tg == "pr_open") {
+            if (trigger == "OnOpen") {
                 runStrategy += "[:fa-toggle-on:](#note_${giteeApi.CICommentID} \"该Stage会在 PR 打开时触发(不包括 reopen)\") "
             }
-            if (tg == "pr_close") {
+            if (trigger == "OnClose") {
                 runStrategy += "[:fa-times-circle:](#note_${giteeApi.CICommentID} \"该Stage会在 PR 关闭时触发\") "
             }
-            if (tg == "pr_tested") {
+            if (trigger == "OnTestPass") {
                 runStrategy += "[:fa-check:](#note_${giteeApi.CICommentID} \"该Stage会在 PR 测试通过时触发\") "
             }
-            if (tg == "pr_approved") {
+            if (trigger == "OnApproved") {
                 runStrategy += "[:fa-eye:](#note_${giteeApi.CICommentID} \"该Stage会在 PR 审核通过时触发\") "
+            }
+            if (trigger == "OnBuildPass") {
+                runStrategy += "[:fa-check-square-o:](#note_${giteeApi.CICommentID} \"该 stage 会在之前所有 stage 都执行成功时触发\") "
+            }
+            if (trigger == "OnBuildFailure") {
+                runStrategy += "[:fa-bug:](#note_${giteeApi.CICommentID} \"该Stage会在之前任意 stage 执行失败时触发\") "
             }
         }
         return runStrategy
@@ -107,12 +122,12 @@ class Event {
             return false
         }
         def flag = commandParse.get("flag") as String
-        if (flag != "rebuild") {
-            logger.debug("eventHandlerNote: flag is not rebuild, skip eventHandlerNote")
+        if (flag != instructionPrefix) {
+            logger.debug("eventHandlerNote: flag is not ${instructionPrefix}, skip eventHandlerNote")
             return false
         }
         if (stageNames.size() == 0) {
-            // 当直接评论 rebuild时，会重新以代码提交的事件重新运行
+            // 当直接评论 ${instructionPrefix} 时，会重新以代码提交的事件重新运行
             logger.debug("eventHandlerNote: stageNames is empty, fileMatches: ${fileMatches}, targetBranch: ${targetBranch}, stageName: ${stageName}")
             if (triggers.contains("pr_push")) {
                 needRun = eventHandlerMerge(fileMatches, null, targetBranch, sourceBranch)
@@ -121,7 +136,7 @@ class Event {
             }
 
         } else if (utils.rexContains(noteMatches, this.script.env.noteBody)) {
-            // 当rebuild后面的名称与当前不一致，但runCommands参数中包含评论内容时
+            // 当 ${instructionPrefix} 后面的名称与当前不一致，但runCommands参数中包含评论内容时
             logger.debug("eventHandlerNote: stageNames contains note")
             needRun = true
         } else if (stageNames.contains("failure")) {
@@ -169,17 +184,27 @@ class Event {
     boolean needRunStageNotCI(Map<String, Object> stage, Exception error = null) {
         // 非 CI 场景下仅支持环境变量匹配和 always 条件下的执行，其他 PR 相关的触发条件将不会触发
         List<String> trigger = stage.get("trigger") as List<String>
+        Map<String, Object> jsonBody = utils.jsonParse(this.script.env.jsonbody as String) as Map<String, Object>
+        String fileMatches = stage.get("fileMatches", "") as String
         boolean needRun = false
-        if (trigger.contains("env_match")) {
+        if (trigger.contains("OnEnv")) {
             needRun = eventHandlerEnv(stage.get("envMatches") as Map<String, Object>)
         }
-        if (trigger.contains("always")) {
+        if (trigger.contains("Always")) {
             needRun = true
         }
-        if (trigger.contains("onPass") && ! error) {
+        if (trigger.contains("OnPush")) {
+            if (this.script.env.giteeActionType && this.script.env.giteeActionType == "PUSH") {
+                String afterCommit = "${jsonBody.after}"
+                String beforeCommit = "${jsonBody.before}"
+                needRun = eventHandlerMerge(fileMatches, null, afterCommit, beforeCommit)
+                logger.debug("eventHandlerMerge: push, needRun: ${needRun}")
+            }
+        }
+        if (trigger.contains("OnBuildPass") && ! error) {
             needRun = true
         }
-        if (trigger.contains("onFailure") && error) {
+        if (trigger.contains("OnBuildFailure") && error) {
             needRun = true
         }
         return needRun
@@ -193,10 +218,10 @@ class Event {
         List<String> noteMatches = stage.get("noteMatches", []) as List<String>
         Map<String, Object> envMatches = stage.get("envMatches", []) as Map<String, Object>
         Map<String, Object> jsonBody = utils.jsonParse(this.script.env.jsonbody as String) as Map<String, Object>
-        if (trigger.contains("always")) {
+        if (trigger.contains("Always")) {
             needRun = true
         }
-        if (trigger.contains("pr_merge")) {
+        if (trigger.contains("OnMerge")) {
             if (this.script.env.giteeActionType == "MERGE" && jsonBody.action == "merge") {
                 def commitNumber = "${jsonBody.pull_request.commits}"
                 def targetBranch = "origin/${this.script.env.giteeTargetBranch}"
@@ -204,52 +229,53 @@ class Event {
                 logger.debug("eventHandlerMerge: merge, commitNumber: ${commitNumber}, needRun: ${needRun}")
             }
         }
-        if (trigger.contains("pr_push")) {
+        if (trigger.contains("OnUpdate")) {
             if (this.script.env.giteeActionType == "MERGE" && (jsonBody.action == "update" || jsonBody.action == "open")) {
                 String targetBranch = "origin/${this.script.env.giteeTargetBranch}"
                 needRun = eventHandlerMerge(fileMatches, null, targetBranch, script.env.giteePullRequestLastCommit as String)
-                logger.debug("eventHandlerMerge: push, needRun: ${needRun}")
+                logger.debug("eventHandlerMerge: update, needRun: ${needRun}")
             }
         }
-        if (trigger.contains("pr_close")) {
+
+        if (trigger.contains("OnClose")) {
             if (this.script.env.giteeActionType == "MERGE" && jsonBody.action == "close") {
                 needRun = true
                 logger.debug("eventHandlerMerge: close, needRun: ${needRun}")
             }
         }
-        if (trigger.contains("pr_open")) {
+        if (trigger.contains("OnOpen")) {
             if (this.script.env.giteeActionType == "MERGE" && jsonBody.action == "open") {
                 needRun = true
                 logger.debug("eventHandlerMerge: open, needRun: ${needRun}")
             }
         }
-        if (trigger.contains("pr_approved")) {
+        if (trigger.contains("OnApproved")) {
             if (this.script.env.giteeActionType == "MERGE" && jsonBody.action == "approved") {
                 needRun = true
                 logger.debug("eventHandlerMerge: approved, needRun: ${needRun}")
             }
         }
-        if (trigger.contains("pr_tested")) {
+        if (trigger.contains("OnTestPass")) {
             if (this.script.env.giteeActionType == "MERGE" && jsonBody.action == "tested") {
                 needRun = true
                 logger.debug("eventHandlerMerge: tested, needRun: ${needRun}")
             }
         }
-        if (trigger.contains("pr_note")) {
+        if (trigger.contains("OnComment")) {
             if (this.script.env.giteeActionType == "NOTE" && jsonBody.action == "comment") {
                 String targetBranch = "origin/${this.script.env.giteeTargetBranch}"
                 needRun = eventHandlerNote(trigger, stageName, noteMatches, failureStages, fileMatches, targetBranch, script.env.giteePullRequestLastCommit as String)
                 logger.debug("eventHandlerNote: note, needRun: ${needRun}")
             }
         }
-        if (trigger.contains("env_match")) {
+        if (trigger.contains("OnEnv")) {
             needRun = eventHandlerEnv(envMatches)
             logger.debug("eventHandlerEnv: env_match, needRun: ${needRun}")
         }
-        if (trigger.contains("onPass") && ! error) {
+        if (trigger.contains("OnBuildPass") && ! error) {
             needRun = true
         }
-        if (trigger.contains("onFailure") && error) {
+        if (trigger.contains("OnBuildFailure") && error) {
             needRun = true
         }
         return needRun

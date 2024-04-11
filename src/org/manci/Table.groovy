@@ -3,7 +3,7 @@ package org.manci
 
 class Table implements Serializable{
     String tableTag = "MANCI V1"
-    def tableHeader = ["检查项", "[分组](# \"分组相同的 stage 将会顺序执行，分组不同的 stage 将会并发执行。另外有三个特殊组：before, after; before 组会最先执行，after 组会最后执行。\")", "检查状态", "执行耗时", "执行次数", "执行耗时", "触发策略", "备注"]
+    def tableHeader = ["检查项", "[分组](# \"分组相同的 stage 将会顺序执行，分组不同的 stage 将会并发执行。另外有2个特殊组：before, after; before 组会最先执行，after 组会最后执行。\")", "检查状态", "执行耗时", "执行次数", "执行耗时", "触发策略", "备注"]
     public String text = ""
     def commentBody = ""
     def commentInfo = ""
