@@ -1,6 +1,7 @@
 @Library('manci')_
 
 manci = new ManCI(this, "debug", "ManCI V1", "rebuild")
+notify = new Notify(this, "qyweixin", "2d5f4257-9b32-4211-93ec-4d266cd83bbb")
 
 // 定义参数，这些参数会显示在 jenkins 的参数化构建页面；同时也会显示到 CI 表格下方
 manci.parameters = [
@@ -10,7 +11,8 @@ manci.parameters = [
         [type: 'text', description: '自定义测试用', name: 'TEST_TEXT', defaultValue: ''],
         [type: 'file', description: '自定义测试用', name: 'TEST_FILE', defaultValue: ''],
         [type: 'credentials', description: '自定义测试用', name: 'TEST_CREDENTIALS', credentialType:'org.jenkinsci.plugins.plaincredentials.impl.StringCredentialsImpl', defaultValue: '', required: false],
-        [type: 'password', description: '自定义测试用', name: 'TEST_PASSWORD', defaultValue: '']
+        [type: 'password', description: '自定义测试用', name: 'TEST_PASSWORD', defaultValue: ''],
+        [defaultValue: "${env.giteeUserName}", description: 'PR 提交者', name: 'QW_WEBHOOK_USER', type: 'string'],
 ]
 
 // 定义 ssh 密钥，用来拉取git仓库代码。此密钥必须在 Jenkins 的 Credentials 中存在，类型为 ssh username with private key
@@ -91,10 +93,16 @@ manci.withRun(){
         if (manci.isCI){
             manci.giteeApi.testPass()
         }
+        notify.sendMessage("构建耗时: ${currentBuild.durationString}", "info",
+                "[PR]: ${env.giteePullRequestTitle} 检查成功",
+                "[查看控制台](${BUILD_URL})", "${env.QW_WEBHOOK_USER}")
 
     }
     manci.stage("on-failure", [group: "after", trigger: ["OnBuildFailure"], fastFail: false]){
         // 当阶段执行失败时执行此阶段，可以用来做通知告警等
         echo "run failure"
+        notify.sendMessage("构建耗时: ${currentBuild.durationString}", "warning",
+                "[PR]: ${env.giteePullRequestTitle} 检查失败",
+                "[查看控制台](${BUILD_URL})", "${env.QW_WEBHOOK_USER}")
     }
 }
