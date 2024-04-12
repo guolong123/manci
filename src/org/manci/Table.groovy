@@ -54,14 +54,14 @@ class Table implements Serializable{
         }
     }
 
-    def addColumns(List<List<String>> columnList) {
+    boolean addColumns(List<List<String>> columnList) {
         columnList.eachWithIndex { row, rowIndex ->
             this.table.columns.eachWithIndex { t, i ->
                 if (row[0] == t[0]) {
                     logger.debug("exist row: ${t[2]}")
                     if ((row[2].contains(NOT_NEED_RUN_LABEL) || row[2].contains(WAITING_LABEL)) && !t[2].contains(WAITING_LABEL)) {
-                         logger.debug("stage ${row[0]} status does not need to be updated")
-                        return
+                        logger.debug("stage ${row[0]} status does not need to be updated")
+                        return false
                     } else {
                         this.table.columns[i] = row
                     }
@@ -69,6 +69,7 @@ class Table implements Serializable{
             }
         }
         this.text = tableCreate()
+        return true
     }
 
     def getStageRunTotal(String stageName) {

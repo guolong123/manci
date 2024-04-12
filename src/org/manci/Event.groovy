@@ -41,16 +41,16 @@ class Event {
 
         triggers.each { trigger ->
             if (trigger == "OnComment") {
-                runStrategy += "[:fa-pencil:](#note_${giteeApi.CICommentID} \"该Stage可通过评论${stage.noteMatches.collect { it.replace('|', '\\\\|') }}触发\") "
+                runStrategy += "[:fa-pencil:](#note_${giteeApi.CICommentID} \"该Stage可通过评论${stage.noteMatches.collect { it.replace('|', '\\|') }}触发\") "
             }
             if (trigger == "OnPush") {
-                runStrategy += "[:fa-paypal:](#note_${giteeApi.CICommentID} \"该Stage可在推送代码匹配正则${stage.fileMatches.replace('\\|', '\\\\|')}时自动触发\") "
+                runStrategy += "[:fa-paypal:](#note_${giteeApi.CICommentID} \"该Stage可在推送代码匹配正则${stage.fileMatches.replace('|', '\\|')}时自动触发\") "
             }
             if(trigger == "OnUpdate"){
-                runStrategy += "[:fa-refresh:](#note_${giteeApi.CICommentID} \"该Stage可在代码更新时自动触发\") "
+                runStrategy += "[:fa-refresh:](#note_${giteeApi.CICommentID} \"该Stage可在代码更新时并且修改的文件路径匹配正则：[${stage.fileMatches.replace('|', '\\|')}] 时自动触发\") "
             }
             if (trigger == "OnMerge") {
-                runStrategy += "[:fa-maxcdn:](#note_${giteeApi.CICommentID} \"该Stage可在合并代码匹配正则${stage.fileMatches.replace('\\|', '\\\\|')}时自动触发\") "
+                runStrategy += "[:fa-maxcdn:](#note_${giteeApi.CICommentID} \"该Stage可在代码合并时并且修改的文件路径匹配正则：[${stage.fileMatches.replace('|', '\\|')}] 时自动触发\") "
             }
             if (trigger == "OnEnv") {
                 runStrategy += "[:fa-list:](#note_${giteeApi.CICommentID} \"该Stage可在环境变量匹配时触发: ${stage.envMatches}\") "
@@ -104,10 +104,10 @@ class Event {
         return needRun
     }
 
-    boolean eventHandlerNote(List<String> triggers, String stageName, List<String> noteMatches = [], List<String> failureStages = [], String fileMatches = "", String targetBranch = null, String sourceBranch = null) {
+    boolean eventHandlerNote(List<String> triggers, String stageName, String groupName, List<String> noteMatches = [], List<String> failureStages = [], String fileMatches = "", String targetBranch = null, String sourceBranch = null) {
         boolean needRun = false
         Map<String, Object> commandParse = utils.commandParse(this.script.env.noteBody as String)
-        logger.debug("eventHandlerNote: noteMatches: ${noteMatches}, failureStages: ${failureStages}, fileMatches: ${fileMatches}, targetBranch: ${targetBranch}, sourceBranch: ${sourceBranch}, stageName: ${stageName}")
+        logger.debug("eventHandlerNote: noteMatches: ${noteMatches}, failureStages: ${failureStages}, fileMatches: ${fileMatches}, targetBranch: ${targetBranch}, sourceBranch: ${sourceBranch}, stageName: ${stageName}, groupName: ${groupName}")
 
         def stageNames = commandParse.get("args") as List<String>
         noteMatches.add(stageName)
@@ -144,6 +144,8 @@ class Event {
                 logger.debug("eventHandlerNote: stageNames contains failure")
                 needRun = true
             }
+        } else if (stageNames.contains(groupName)) {
+            needRun = true
         }
         return needRun
     }
@@ -214,7 +216,8 @@ class Event {
         boolean needRun = false
         List<String> trigger = stage.get("trigger") as List<String>
         String fileMatches = stage.get("fileMatches", "") as String
-        String stageName = stage.get("stageName") as String
+        String stageName = stage.get("name") as String
+        String groupName = stage.get("group", "") as String
         List<String> noteMatches = stage.get("noteMatches", []) as List<String>
         Map<String, Object> envMatches = stage.get("envMatches", []) as Map<String, Object>
         Map<String, Object> jsonBody = utils.jsonParse(this.script.env.jsonbody as String) as Map<String, Object>
@@ -264,7 +267,7 @@ class Event {
         if (trigger.contains("OnComment")) {
             if (this.script.env.giteeActionType == "NOTE" && jsonBody.action == "comment") {
                 String targetBranch = "origin/${this.script.env.giteeTargetBranch}"
-                needRun = eventHandlerNote(trigger, stageName, noteMatches, failureStages, fileMatches, targetBranch, script.env.giteePullRequestLastCommit as String)
+                needRun = eventHandlerNote(trigger, stageName, groupName, noteMatches, failureStages, fileMatches, targetBranch, script.env.giteePullRequestLastCommit as String)
                 logger.debug("eventHandlerNote: note, needRun: ${needRun}")
             }
         }

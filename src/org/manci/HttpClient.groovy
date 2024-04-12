@@ -15,7 +15,7 @@ class HttpClient implements Serializable{
     Utils utils
     def headers = ["Content-Type": "application/json;charset=UTF-8"]
 
-    HttpClient(script, String baseUrl, Map<String ,String> headers = null) {
+    HttpClient(script, String baseUrl, Map<String ,String> headers = [:]) {
         this.baseUrl = baseUrl
         this.token = token
         this.headers.putAll(headers)

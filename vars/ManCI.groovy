@@ -7,7 +7,8 @@ import org.manci.Event
 import java.util.concurrent.ConcurrentHashMap
 
 class ManCI implements Serializable {
-    transient Map<String, List<Map<String, Object>>> stages = [:]
+    transient Map<String, List<Map<String, Object>>> stagesInfo = [:]
+    transient Map<String, Closure> stages =  [:] as Map
     boolean isCI = false
     public String CIName = "ManCI V1"
     Table table = null
@@ -17,11 +18,13 @@ class ManCI implements Serializable {
     public List<Map<String, Object>> parameters
     public String projectDescription = """
 ## 指令说明
-**指令**: `rebuild [stageName [stageName...]|failure] [env1=value1 env2=value2...] [withAlone=true|false]`
+**指令**: `${instructionPrefix} [stageName [stageName...]|groupName [groupName...]|failure] [env1=value1 env2=value2...] [withAlone=true|false]`
 **描述**:
 > * 无参数时，按照提交代码时的行为重新构建。
 > * 指定一个或多个 `stage name`（空格分隔），重建指定阶段。
-> * 使用 `rebuild failure` 重建所有失败阶段。
+> * 指定一个或多个 `group name`（空格分隔），可以触发一组相关的 stage 进行重建。
+> * 使用 `${instructionPrefix} failure` 重建所有失败阶段。
+> * 使用 `${instructionPrefix} [groupName]` 构建分组下所有阶段。
 > * 可选地附加一组环境变量设置（键值对，等号分隔），在重建过程中将其注入到运行时环境中。
 > * 通过添加参数 withAlone=true，确保仅执行当前指定的 stage，而不执行其关联的其他 stage。默认情况下，withAlone=false，即可能执行与指定 stage 关联的其他 stage。
 """
@@ -32,6 +35,7 @@ class ManCI implements Serializable {
     Utils utils
     boolean failFast = true
     Event event
+    boolean allStageOnComment = false  // 是否允许所有阶段都通过评论触发
 
     ManCI(script, String loggerLevel = "info", String CIName = null, String instructionPrefix = "run") {
         this.script = script
@@ -41,7 +45,7 @@ class ManCI implements Serializable {
         this.script.env.LOGGER_LEVEL = loggerLevel
         this.logger = new Logger(script)
         this.utils = new Utils(script)
-        if (instructionPrefix){
+        if (instructionPrefix) {
             this.instructionPrefix = instructionPrefix
         }
 
@@ -60,11 +64,11 @@ class ManCI implements Serializable {
             } else if (it.type == "boolean") {
                 propertiesParams.add(script.booleanParam(name: it.name, description: it.description, defaultValue: it.defaultValue))
             } else if (it.type == "password") {
-                propertiesParams.add(script.password(name: it.name, description: it.description, defaultValue: it.defaultValue))
+                propertiesParams.add(script.password(name: it.name, description: it.description))
             } else if (it.type == "text") {
                 propertiesParams.add(script.text(name: it.name, description: it.description, defaultValue: it.defaultValue))
             } else if (it.type == "file") {
-                propertiesParams.add(script.file(name: it.name, description: it.description, defaultValue: it.defaultValue))
+                propertiesParams.add(script.file(name: it.name, description: it.description))
             } else if (it.type == "credentials") {
                 propertiesParams.add(script.credentials(name: it.name, description: it.description,
                         defaultValue: it.defaultValue, credentialType: it.credentialType, required: it.required)
@@ -85,19 +89,20 @@ class ManCI implements Serializable {
         List<String> noteMatches = stageConfig.get("noteMatches", []) as List<String>
         String mark = stageConfig.get("mark", "") as String
         boolean fastFail = stageConfig.get("fastFail", true) as boolean
-        if (!stages.containsKey(groupName)) {
-            stages[groupName as String] = []
+        if (!stagesInfo.containsKey(groupName)) {
+            stagesInfo[groupName as String] = []
         }
-        stages[groupName].add([
+        stagesInfo[groupName].add([
                 "name"       : stageName,
                 "trigger"    : trigger,
-                "body"       : body,
                 "envMatches" : envMatches,
                 "fileMatches": fileMatches,
                 "noteMatches": noteMatches,
                 "mark"       : mark,
-                "fastFail"   : fastFail
+                "fastFail"   : fastFail,
+                "group"      : groupName
         ] as Map<String, Object>)
+        stages[stageName] = body
     }
 
 
@@ -184,7 +189,7 @@ class ManCI implements Serializable {
         Exception error = null
         if (isCI) {
             List<String> stageNames = [] as List<String>
-            stages.each {
+            stagesInfo.each {
                 it.value.each {
                     stageNames.add(it.name as String)
                 }
@@ -193,11 +198,14 @@ class ManCI implements Serializable {
 
             table.text = giteeApi.initComment(table.text)
             table.tableParse()  // 从已有的评论中解析出table
-            stages.each { group, st ->
-                parallelStage[group] = {
-                    st.each {
+            stagesInfo.each { group, stg ->
+                parallelStage[group as String] = {
+                    stg.each {
+                        if (allStageOnComment){
+                            it.trigger.add("OnComment")
+                        }
                         it.noteMatches.add("rebuild ${it.name}")
-                        String runStrategy = event.getStageTrigger(it.trigger as List<String>, giteeApi as GiteeApi, it as Map<String, Object>)
+                        String runStrategy = event.getStageTrigger(it.trigger as List<String>, giteeApi as GiteeApi, it as ConcurrentHashMap<String, Object>)
                         String elapsedTime = ""
                         String nowTime = ""
                         Integer runCnt = 0
@@ -217,10 +225,13 @@ class ManCI implements Serializable {
                             runCnt = table.getStageRunTotal(it.name as String) + 1
                             logger.debug("needRunStage: ${it.name}")
                             try {
-                                table.addColumns([[it.name, group,
+                                boolean needUpdate = table.addColumns([[it.name, group,
                                                    "[${table.RUNNING_LABEL}](${script.env.RUN_DISPLAY_URL} \"点击跳转到 jenkins 构建页面\")",
                                                    "0min0s" + "/" + table.getStageRunTotalTime(it.name as String), runCnt, nowTime, runStrategy, it.mark]])
-                                stageRun(it.name as String, it.body as Closure)
+                                if (needUpdate){
+                                    giteeApi.comment(table.text)
+                                }
+                                stageRun(it.name as String, stages.get(it.name) as Closure)
                                 buildResult = 0
                                 logger.debug("[${it.name}] 204: buildResult: ${buildResult}")
                             } catch (org.jenkinsci.plugins.workflow.steps.FlowInterruptedException e) {
@@ -274,14 +285,14 @@ class ManCI implements Serializable {
                 }
             }
         } else {
-            stages.each { k, v ->
-                parallelStage[k] = {
+            stagesInfo.each { k, v ->
+                parallelStage[k as String] = {
                     v.each {
-                        def needRun = event.needRunStageNotCI(it, error)
+                        def needRun = event.needRunStageNotCI(it as Map<String, Object>, error)
                         script.stage(it.name) {
                             if (needRun) {
                                 try {
-                                    stageRun(it.name as String, it.body as Closure)
+                                    stageRun(it.name as String, stages.get(it.name) as Closure)
                                 } catch (Exception e) {
                                     error = e as Exception
                                     logger.debug("[${it.name}] 202: ${e}")
@@ -317,7 +328,7 @@ class ManCI implements Serializable {
         if (afterStage) {
             afterStage.call()
         }
-        if (!error && table && ! table.isSuccessful()) {
+        if (!error && table && !table.isSuccessful()) {
             error = new Exception("存在未成功的 stage，此次构建将以失败状态退出")
         }
 

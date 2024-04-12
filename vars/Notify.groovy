@@ -26,7 +26,6 @@ class Notify {
     }
 
     def sendWechatMessage(message) {
-        logger.debug("sendWechatMessage: ${message}")
         def body = [
                 "msgtype" : "markdown",
                 "markdown": ["content": "${message}"]
@@ -35,7 +34,6 @@ class Notify {
     }
 
     def sendDingTalkMessage(message) {
-        logger.debug("sendWechatMessage: ${message}")
         def body = [
                 "msgtype" : "markdown",
                 "markdown": ["text": "${message}"]
@@ -43,7 +41,7 @@ class Notify {
         httpClient.post("/robot/send", body, ["key": access_token])
     }
 
-    def sendMessage(String message, String level="info", String title="CI检查结果", String linkText="", String user="") {
+    def sendMessage(String level="info", String message=null, String title="", String linkText="", String user="") {
         message = messageFormat(message, level, title, linkText, user)
         logger.debug("sendMessage: ${message}")
         if (webhookType == "dingtalk") {
@@ -53,16 +51,29 @@ class Notify {
         }
     }
 
-    static String messageFormat(String message, String level="info", String title="", String linkText="", String user="") {
+    def sendFailureMessage(String message=null, String title="", String linkText="", String user="") {
+        sendMessage("error", message, title, linkText, user)
+    }
+    def sendSuccessMessage(String message=null, String title="", String linkText="", String user="") {
+        sendMessage("info", message, title, linkText, user)
+    }
+
+    String messageFormat(String message=null, String level="info", String title="", String linkText="", String user="") {
         String messageResult = ""
-        if (title){
-            messageResult += "<font color=\"${level}\">${title}</font>\n>"
+        if (!message){
+            message = "构建耗时: ${script.currentBuild.durationString.replace("and counting", "")}"
         }
+        if (!title){
+            title = "[PR]: [${script.env.giteePullRequestTitle}](https://gitee.com/${script.env.giteeTargetNamespace}/${script.env.giteeTargetRepoName}/pulls/${script.env.giteePullRequestIid})"
+        }
+        messageResult += "<font color=\"${level}\">${title}</font>\n>"
         messageResult += message + "\n"
-        if (linkText){
-            messageResult += linkText
+        if (!linkText){
+            linkText = "[查看控制台](${script.env.BUILD_URL})"
         }
-        if (user){
+        messageResult += linkText
+        if (!user && "${script.env.giteeUserName}"){
+            user = "${script.env.giteeUserName}"
             messageResult += "<@${user}>"
         }
         return messageResult
