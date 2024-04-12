@@ -35,7 +35,6 @@ class Event {
         }
         return needRun
     }
-
     static String getStageTrigger(List<String> triggers, GiteeApi giteeApi, Map<String, Object> stage) {
         String runStrategy = ""
 
@@ -79,7 +78,6 @@ class Event {
         }
         return runStrategy
     }
-
     boolean eventHandlerMerge(String fileMatches = "", String commitNumber = null, String targetBranch = "", String sourceBranch = null) {
         if (!fileMatches) {
             logger.debug("fileMatches is empty, skip eventHandlerMerge")
@@ -103,7 +101,6 @@ class Event {
         }
         return needRun
     }
-
     boolean eventHandlerNote(List<String> triggers, String stageName, String groupName, List<String> noteMatches = [], List<String> failureStages = [], String fileMatches = "", String targetBranch = null, String sourceBranch = null) {
         boolean needRun = false
         Map<String, Object> commandParse = utils.commandParse(this.script.env.noteBody as String)
@@ -149,7 +146,6 @@ class Event {
         }
         return needRun
     }
-
     def eventHandlerEnv(Map<String, Object> envMatches) {
         boolean needRun = true
         String role = envMatches.get('role', 'and')
@@ -182,7 +178,6 @@ class Event {
 
         return needRun
     }
-
     boolean needRunStageNotCI(Map<String, Object> stage, Exception error = null) {
         // 非 CI 场景下仅支持环境变量匹配和 always 条件下的执行，其他 PR 相关的触发条件将不会触发
         List<String> trigger = stage.get("trigger") as List<String>
@@ -211,7 +206,6 @@ class Event {
         }
         return needRun
     }
-
     boolean giteeCITrigger(Map<String, Object> stage, List<String> failureStages, Exception error=null) {
         boolean needRun = false
         List<String> trigger = stage.get("trigger") as List<String>

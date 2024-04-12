@@ -1,6 +1,6 @@
-@Library('manci')_
+@Library('manci') _
 
-manci = new ManCI(this, "debug", "ManCI V1", "rebuild")
+manci = new ManCI(this, "info", "ManCI V1", "rebuild")
 
 //notify = new Notify(this, "qyweixin", "2d5f4257-9b32-4211-93ec-4d266cd83bbb")
 
@@ -32,8 +32,8 @@ PR_TITLE_CHECK_REX = /(\[)(feat|fix|build|docs|style|refactor|perf|test|revert|c
 manci.withRun() {
 
     manci.stage("check-pr-title", [group: "before", trigger: ["pr_note", "pr_open"], mark: "[访问地址](#)"]) {
-        def matcher = (env.giteePullRequestTitle ==~ PR_TITLE_CHECK_REX)
-        if (matcher != true) {
+        boolean matcher = (env.giteePullRequestTitle ==~ PR_TITLE_CHECK_REX)
+        if (!matcher) {
             throw new Exception("PR提交不规范, 内容: ${giteePullRequestTitle}")
         } else {
             echo "PR提交符合规范"
@@ -43,8 +43,8 @@ manci.withRun() {
     manci.stage("check-commit", [group: "before", trigger: ["pr_note", "pr_open"], mark: "[访问地址](#)"]) {
         commits = sh(script: "git log --left-right --format=%s origin/${env.giteeTargetBranch}...${env.ref}", returnStdout: true)
         echo "commits: ${commits}"
-        def matcher = (env.giteePullRequestTitle ==~ PR_TITLE_CHECK_REX)
-        if (matcher != true) {
+        boolean matcher = (env.giteePullRequestTitle ==~ PR_TITLE_CHECK_REX)
+        if (!matcher) {
             throw new Exception("commit message 提交不规范, 内容: ${commits}")
         } else {
             echo "commit message 符合规范"
@@ -84,9 +84,10 @@ manci.withRun() {
     manci.stage("pr_open", [group: "group3", trigger: ["OnOpen"]]) {
         sh 'sleep 1'
     }
-    manci.stage("always", [group: "group4", trigger: ["Always"]]) {
-        sh 'sleep 1'
-        echo "always 组中的 stage 总是执行"
+    manci.stage("always", [group: "group3", trigger: ["Always"]]) {
+        echo "always 组中的 stage 总是执行1"
+
+        echo "always 组中的 stage 总是执行2"
     }
     manci.stage("on-pass", [group: "after", trigger: ["OnBuildPass"], fastFail: false]) {
         // 当阶段执行成功时执行此阶段，此处设置测试状态为通过；
@@ -108,3 +109,4 @@ manci.withRun() {
 //        }
     }
 }
+

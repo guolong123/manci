@@ -1,9 +1,9 @@
 package org.manci
-
+import java.util.concurrent.ConcurrentHashMap
 
 class Table implements Serializable{
     String tableTag = "MANCI V1"
-    def tableHeader = ["检查项", "[分组](# \"分组相同的 stage 将会顺序执行，分组不同的 stage 将会并发执行。另外有2个特殊组：before, after; before 组会最先执行，after 组会最后执行。\")", "检查状态", "执行耗时", "执行次数", "执行耗时", "触发策略", "备注"]
+    List<String> tableHeader = ["检查项", "[分组](# \"分组相同的 stage 将会顺序执行，分组不同的 stage 将会并发执行。另外有2个特殊组：before, after; before 组会最先执行，after 组会最后执行。\")", "检查状态", "执行耗时", "执行次数", "执行耗时", "触发策略", "备注"]
     public String text = ""
     def commentBody = ""
     def commentInfo = ""
@@ -15,12 +15,12 @@ class Table implements Serializable{
     public static final NOT_NEED_RUN_LABEL = ":white_large_square: skip"
     public static final ABORTED_LABEL = ":heavy_exclamation_mark: aborted"
 
-    Map<String, List<String>> table
+    transient ConcurrentHashMap<String, List<String>> table
 
     def script
     Logger logger
 
-    Table(script, String tableTag = "", String commentBody = "", String commentInfo = "", List<String> stageList = []) {
+    Table(script, String tableTag = "", String commentBody = "", String commentInfo = "") {
         if (tableTag) {
             this.tableTag = tableTag
         }
@@ -31,6 +31,9 @@ class Table implements Serializable{
         if (commentInfo) {
             this.commentInfo = commentInfo
         }
+    }
+    @NonCPS
+    def init(List<String> stageList = []){
         if (this.commentBody) {
             // this.log.debug("commentBody: ${commentBody}")
             tableParse()
@@ -45,7 +48,7 @@ class Table implements Serializable{
             tableCreate()
         }
     }
-
+    @NonCPS
     Boolean isSuccessful(){
         if (this.table.columns.find { it[2].contains(FAILURE_LABEL) || it[2].contains(ABORTED_LABEL) }) {
             return false
@@ -53,7 +56,7 @@ class Table implements Serializable{
             return true
         }
     }
-
+    @NonCPS
     boolean addColumns(List<List<String>> columnList) {
         columnList.eachWithIndex { row, rowIndex ->
             this.table.columns.eachWithIndex { t, i ->
@@ -71,7 +74,7 @@ class Table implements Serializable{
         this.text = tableCreate()
         return true
     }
-
+    @NonCPS
     def getStageRunTotal(String stageName) {
         def runTotal = "0"
         def num = 0
@@ -91,7 +94,7 @@ class Table implements Serializable{
         }
         return num
     }
-
+    @NonCPS
     def getStageRunTotalTime(String stageName) {
         String runTotalTime = "0m0s"
         this.table.columns.each { t ->
@@ -107,10 +110,10 @@ class Table implements Serializable{
         }
         return runTotalTime
     }
-
+    @NonCPS
     def getFailureStages() {
         def failureStages = []
-        this.table.columns.each { t ->
+        table.columns.each { t ->
             if (t[2].contains(FAILURE_LABEL) || t[2].contains(ABORTED_LABEL)) {
                 failureStages.add(t[0])
             }
@@ -120,7 +123,7 @@ class Table implements Serializable{
     }
 
     @NonCPS
-    String tableParse() {
+    def tableParse() {
         /* 该方法解析表格为格式化数据
            例如：
            """
@@ -142,7 +145,6 @@ class Table implements Serializable{
             ]
            }
         */
-
         def tableData = text.split('\n\n')[1]  // 获取表格数据部分
         def tableLines = tableData.split('\n')
 
@@ -151,11 +153,11 @@ class Table implements Serializable{
         def header = headerLine.split(' \\| ')[1..-1].collect { it.trim() }
         // 提取表格数据
         def rows = tableLines[2..-1].collect { it.split(' \\| ')[1..-1].collect { it.trim() } }
-        table = [header: header, columns: rows] as Map<String, List<String>>
+        table = [header: header, columns: rows] as ConcurrentHashMap<String, List<String>>
     }
 
     @NonCPS
-    String tableCreate() {
+    def tableCreate() {
         /*
         该方法将接收一个map，转换为markdown格式的表格字符串，map结构如下：
         {

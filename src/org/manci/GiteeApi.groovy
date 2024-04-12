@@ -32,29 +32,32 @@ class GiteeApi implements Serializable{
     }
 
     def client = new HttpClient(script, baseUrl, ["Authorization": "token ${token}"])
-
+    @NonCPS
     def getRepo() {
         def url = "/api/v5/repos/${repoPath}"
         def response = client.get(url)
         return response
     }
+    @NonCPS
     def getRepoBranches() {
         def url = "/api/v5/repos/${repoPath}/branches"
         def response = client.get(url)
         return response
     }
+    @NonCPS
     def getPullRequests() {
         def url = "/api/v5/repos/${repoPath}/pulls"
         def response = client.get(url)
         return response
     }
+    @NonCPS
     def getPullRequest() {
         def url = "/api/v5/repos/${repoPath}/pulls/${pullRequestID}"
         def response = client.get(url)
         return response
     }
-
-    String initComment(String comment){
+    @NonCPS
+    def initComment(String comment){
         logger.debug("initComment: ...")
         def comments = getPullRequestComments()
         for (element in comments) {
@@ -71,8 +74,8 @@ class GiteeApi implements Serializable{
         }
         return CICommentBody
     }
-
-    String comment(String comment){
+    @NonCPS
+    def comment(String comment){
         logger.debug("comment: ...")
         def comments = getPullRequestComments()
         for (element in comments) {
@@ -92,8 +95,8 @@ class GiteeApi implements Serializable{
         }
         return CICommentBody
     }
-
-    String getPullRequestComments() {
+    @NonCPS
+    def getPullRequestComments() {
         def url = "/api/v5/repos/${repoPath}/pulls/${pullRequestID}/comments"
         Map<String,String > queryParams = [
             page: "1",
@@ -102,12 +105,14 @@ class GiteeApi implements Serializable{
         def response = client.get(url, queryParams)
         return response
     }
-    String getPullRequestComment() {
+    @NonCPS
+    def getPullRequestComment() {
         def url = "/api/v5/repos/${repoPath}/pulls/${pullRequestID}/comments/${CICommentID}"
         def response = client.get(url)
         return response
     }
-    String createPullRequestComment(String comment) {
+    @NonCPS
+    def createPullRequestComment(String comment) {
         def url = "/api/v5/repos/${repoPath}/pulls/${pullRequestID}/comments"
         Map<String, String> data = [
             body: comment
@@ -115,7 +120,8 @@ class GiteeApi implements Serializable{
         def response = client.post(url, data)
         return response
     }
-    String updatePullRequestComment(String comment) {
+    @NonCPS
+    def updatePullRequestComment(String comment) {
         def url = "/api/v5/repos/${repoPath}/pulls/comments/${CICommentID}"
         Map<String, String> data = [
             body: comment
@@ -123,12 +129,13 @@ class GiteeApi implements Serializable{
         def response = client.patch(url, data)
         return response
     }
-    String deletePullRequestComment() {
+    @NonCPS
+    def deletePullRequestComment() {
         def url = "/api/v5/repos/${repoPath}/pulls/${pullRequestID}/comments/${CICommentID}"
         def response = client.delete(url)
         return response
     }
-
+    @NonCPS
     def addLabel(labelName){
         logger.debug("addLabel: ${labelName}")
         def url = "/api/v5/repos/${repoPath}/pulls/${pullRequestID}/labels"
@@ -138,14 +145,14 @@ class GiteeApi implements Serializable{
         def response = client.post(url, data)
         return response
     }
-
+    @NonCPS
     def deleteLabel(labelNames){
         logger.debug("deleteLabel: ${labelNames}")
         def url = "/api/v5/repos/${repoPath}/pulls/${pullRequestID}/labels/${labelNames}"
         def response = client.delete(url)
         return response
     }
-
+    @NonCPS
     def getLabels(){
         logger.debug("getLabels: ...")
         def tags = []
@@ -160,12 +167,12 @@ class GiteeApi implements Serializable{
         }
         return tags
     }
-
+    @NonCPS
     def label(labelName){
         this.deleteLabel("${this.labelSuccess},${this.labelFailure},${this.labelWaiting},${this.labelRunning}")
         this.addLabel(labelName)
     }
-
+    @NonCPS
     def testPass(){
         logger.debug("testPass: ...")
         def url = "/api/v5/repos/${repoPath}/pulls/${pullRequestID}/test"
@@ -175,14 +182,14 @@ class GiteeApi implements Serializable{
         def response = client.post(url, data)
         return response
     }
-
+    @NonCPS
     def review(String reviewers, Integer reviewerNumber = 1){
         if(! this.selectReviewer()){
             this.addReviewer(reviewers)
             this.setReviewerNumber(reviewerNumber)
         }
     }
-
+    @NonCPS
     def selectReviewer(){
         def url = "/api/v5/repos/${repoPath}/pulls/${pullRequestID}"
         def resp = client.get(url)
@@ -195,7 +202,7 @@ class GiteeApi implements Serializable{
         }
         return reviewers
     }
-
+    @NonCPS
     def addReviewer(assignees){
         def url = "/api/v5/repos/${repoPath}/pulls/${pullRequestID}/assignees"
         Map<String, Object> data = [
@@ -203,12 +210,12 @@ class GiteeApi implements Serializable{
         ]
         return client.post(url, data)
     }
-
+    @NonCPS
     def resetReviewer(assignees){
         def url = "/api/v5/repos/${repoPath}/pulls/${pullRequestID}/assignees?assignees=${assignees}"
         return client.delete(url)
     }
-
+    @NonCPS
     def resetReview(){
         def url = "/api/v5/repos/${repoPath}/pulls/${pullRequestID}/assignees"
         Map<String, Object> data = [
@@ -216,7 +223,7 @@ class GiteeApi implements Serializable{
         ]
         return client.patch(url, data)
     }
-
+    @NonCPS
     def addTester(testers){
         def url = "/api/v5/repos/${repoPath}/pulls/${pullRequestID}/testers"
         Map<String, Object> data = [
@@ -224,13 +231,13 @@ class GiteeApi implements Serializable{
         ]
         return client.post(url, data)
     }
-
+    @NonCPS
     def resetTester(testers){
         // 取消用户审查
         def url = "/api/v5/repos/${repoPath}/pulls/${pullRequestID}/testers?assignees=${testers}"
         return client.delete(url)
     }
-
+    @NonCPS
     def resetTest(){
         logger.debug("resetTest: ...")
         // 取消用户审查状态（将审查通过改成未审查）
@@ -240,7 +247,7 @@ class GiteeApi implements Serializable{
         ]
         return client.patch(url, data)
     }
-
+    @NonCPS
     def setTesterNumber(testerNumber=1){
         // 修改测试通过最低数量
         def url = "/api/v5/repos/${repoPath}/pulls/${pullRequestID}"
@@ -249,7 +256,7 @@ class GiteeApi implements Serializable{
         ]
         return client.patch(url, data)
     }
-
+    @NonCPS
     def setReviewerNumber(reviewerNumber=1){
         // 修改审查通过最低数量
         def url = "/api/v5/repos/${repoPath}/pulls/${pullRequestID}"
@@ -258,13 +265,13 @@ class GiteeApi implements Serializable{
         ]
         return client.patch(url, data)
     }
-
+    @NonCPS
     def getPrMergeStatus(){
         def url = "/api/v5/repos/${repoPath}/pulls/${pullRequestID}"
         def resp = client.get(url)
         return resp.state
     }
-
+    @NonCPS
     def updateInfo(text){
         // 更新pr描述
         def url = "/api/v5/repos/${repoPath}/pulls/${pullRequestID}"
@@ -273,7 +280,7 @@ class GiteeApi implements Serializable{
         ]
         return client.patch(url, data)
     }
-
+    @NonCPS
     def getPrInfo(){
         // 获取描述信息
         def url = "/api/v5/repos/${repoPath}/pulls/${pullRequestID}"

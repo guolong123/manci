@@ -3,19 +3,22 @@ import org.manci.GiteeApi
 import org.manci.Logger
 import org.manci.Utils
 import org.manci.Event
-
+import org.manci.Group
 import java.util.concurrent.ConcurrentHashMap
 
+
+
 class ManCI implements Serializable {
-    transient Map<String, List<Map<String, Object>>> stagesInfo = [:]
-    transient Map<String, Closure> stages =  [:] as Map
+    transient ConcurrentHashMap<String, List<Map<String, Object>>> stagesInfo = [:] as ConcurrentHashMap
     boolean isCI = false
     public String CIName = "ManCI V1"
     Table table = null
+    transient Exception error = null
     Logger logger
     GiteeApi giteeApi
+    String runModel = "parallel" // single, parallel
     String instructionPrefix = "run"
-    public List<Map<String, Object>> parameters
+    transient public List<ConcurrentHashMap<String, Object>> parameters
     public String projectDescription = """
 ## 指令说明
 **指令**: `${instructionPrefix} [stageName [stageName...]|groupName [groupName...]|failure] [env1=value1 env2=value2...] [withAlone=true|false]`
@@ -36,6 +39,7 @@ class ManCI implements Serializable {
     boolean failFast = true
     Event event
     boolean allStageOnComment = false  // 是否允许所有阶段都通过评论触发
+    Group group = null
 
     ManCI(script, String loggerLevel = "info", String CIName = null, String instructionPrefix = "run") {
         this.script = script
@@ -50,11 +54,17 @@ class ManCI implements Serializable {
         }
 
         this.event = new Event(script, this.instructionPrefix)
+        group = new Group()
 
     }
 
     def setParams() {
         List<Object> propertiesParams = []
+        logger.debug("params: ${parameters[0].getClass()}")
+        if (this.parameters){
+            this.parameters = this.parameters as List<ConcurrentHashMap<String, Object>>
+        }
+        logger.debug("params: ${parameters[0].getClass()}")
         this.parameters.each {
             paramsDescription.add("* `${it.name}`: ${it.description}")
             if (it.type == "choice") {
@@ -79,12 +89,11 @@ class ManCI implements Serializable {
         propertiesParams.add(script.booleanParam(name: 'withAlone', description: '独立执行指定的 stage，不执行期依赖的 stage', defaultValue: 'false'))
         script.properties([script.parameters(propertiesParams)])
     }
-
     def stage(String stageName, Map<String, Object> stageConfig, Closure body) {
         def groupName = stageConfig.get("group", "default")
         def trigger = stageConfig.get("trigger", "always")
         // always, pr_merge, pr_open, pr_close, pr_push, pr_test_pass, pr_review_pass, env_match, file_match
-        Map<String, Object> envMatches = stageConfig.get("envMatches", [:]) as Map<String, Object>
+        ConcurrentHashMap<String, Object> envMatches = stageConfig.get("envMatches", [:]) as ConcurrentHashMap<String, Object>
         String fileMatches = stageConfig.get("fileMatches", "") as String
         List<String> noteMatches = stageConfig.get("noteMatches", []) as List<String>
         String mark = stageConfig.get("mark", "") as String
@@ -101,14 +110,12 @@ class ManCI implements Serializable {
                 "mark"       : mark,
                 "fastFail"   : fastFail,
                 "group"      : groupName
-        ] as Map<String, Object>)
-        stages[stageName] = body
+        ]as ConcurrentHashMap)
+        group.addStage(stageName, body)
     }
-
 
     def withRun(String nodeLabels = null, Closure body) {
         setParams()
-
         if (this.script.env.noteBody) {
             // 当存在这个环境变量时则解析这个 comment，注入 kv到环境变量
             logger.debug("noteBody: ${this.script.env.noteBody}")
@@ -131,13 +138,15 @@ class ManCI implements Serializable {
         logger.debug "SSH_SECRET_KEY: ${SSH_SECRET_KEY}"
         logger.debug "isCI: ${this.isCI}"
 
-        script.node(nodeLabels) {
+        script.node(nodeLabels){
+            logger.debug("node-delegate: ${delegate.toString()}")
             giteeApi.label(giteeApi.labelRunning)
             script.stage("checkout") {
-                if (script.env.LOGGER_LEVEL && script.env.LOGGER_LEVEL.toLowerCase() == "debug") {
-                    script.sh 'env'
-                }
+//                if (script.env.LOGGER_LEVEL && script.env.LOGGER_LEVEL.toLowerCase() == "debug") {
+//                    script.sh 'env'
+//                }
                 def scmVars = script.checkout script.scm
+                logger.debug("scmVars type: ${scmVars.getClass()}")
                 scmVars.each {
                     logger.debug("${it.key}: ${it.value}")
                 }
@@ -175,18 +184,7 @@ class ManCI implements Serializable {
         }
     }
 
-
-    def stageRun(String stageName, Closure body) {
-        logger.debug("stageRun: ${stageName} start")
-        script.stage(stageName) {
-            body.call()
-        }
-        logger.debug("stageRun: ${stageName} done")
-    }
-
-    def run() {
-        ConcurrentHashMap<String, Object> parallelStage = [:] as ConcurrentHashMap<String, Object>
-        Exception error = null
+    def run(){
         if (isCI) {
             List<String> stageNames = [] as List<String>
             stagesInfo.each {
@@ -194,14 +192,18 @@ class ManCI implements Serializable {
                     stageNames.add(it.name as String)
                 }
             }
-            table = new Table(script, CIName, "", projectDescription + "\n<details>\n<summary><b>参数说明</b>(点击展开)</summary>\n\n" + paramsDescription.join("\n") + "\n</details>", stageNames)
+            logger.debug("stagenames: ${stageNames}")
+            table = new Table(script, CIName, "", projectDescription + "\n<details>\n<summary><b>参数说明</b>(点击展开)</summary>\n\n" + paramsDescription.join("\n") + "\n</details>")
+            table.init(stageNames)
 
             table.text = giteeApi.initComment(table.text)
+//            logger.debug("table.text: ${table.text}")
             table.tableParse()  // 从已有的评论中解析出table
-            stagesInfo.each { group, stg ->
-                parallelStage[group as String] = {
+            stagesInfo.each { groupName, stg ->
+                @NonCPS
+                def body = {
                     stg.each {
-                        if (allStageOnComment){
+                        if (allStageOnComment && ! it.trigger.contains("OnComment")){
                             it.trigger.add("OnComment")
                         }
                         it.noteMatches.add("rebuild ${it.name}")
@@ -212,8 +214,7 @@ class ManCI implements Serializable {
                         Integer buildResult // 0: success, 1: failure, 2: aborted, 3: skip
                         List<String> failureStages = table.getFailureStages()
                         long startTime = System.currentTimeMillis()
-                        logger.debug("error: ${error}")
-                        def needRun = event.needRunStage(it, "gitee", failureStages as List<String>, error)
+                        boolean needRun = event.needRunStage(it as Map<String, Object>, "gitee", failureStages as List<String>, error)
                         if (!needRun) {
                             script.stage(it.name) {
                                 // 标记 stage 为跳过
@@ -223,31 +224,25 @@ class ManCI implements Serializable {
                         } else {
                             nowTime = utils.getNowTime()
                             runCnt = table.getStageRunTotal(it.name as String) + 1
-                            logger.debug("needRunStage: ${it.name}")
                             try {
-                                boolean needUpdate = table.addColumns([[it.name, group,
+                                boolean needUpdate = table.addColumns([[it.name, groupName,
                                                    "[${table.RUNNING_LABEL}](${script.env.RUN_DISPLAY_URL} \"点击跳转到 jenkins 构建页面\")",
                                                    "0min0s" + "/" + table.getStageRunTotalTime(it.name as String), runCnt, nowTime, runStrategy, it.mark]])
                                 if (needUpdate){
                                     giteeApi.comment(table.text)
                                 }
-                                stageRun(it.name as String, stages.get(it.name) as Closure)
+                                script.stage(it.name, group.getStage(it.name as String))
                                 buildResult = 0
-                                logger.debug("[${it.name}] 204: buildResult: ${buildResult}")
                             } catch (org.jenkinsci.plugins.workflow.steps.FlowInterruptedException e) {
-                                logger.error("[${it.name}]: ${e}")
                                 buildResult = 2
                                 error = e as Exception
                             } catch (InterruptedException e) {
-                                logger.error("[${it.name}]: ${e}")
                                 buildResult = 2
                                 error = e as Exception
                             } catch (NotSerializableException e) {
-                                logger.error("[${it.name}] 213: ${e}")
                                 buildResult = 1
                                 error = e as Exception
                             } catch (Exception e) {
-                                logger.error("[${it.name}] 217: ${e}")
                                 buildResult = 1
                                 error = e as Exception
                             }
@@ -268,34 +263,39 @@ class ManCI implements Serializable {
                         }
 
                         if (buildResult == 0) {
-                            table.addColumns([[it.name, group, "[${table.SUCCESS_LABEL}](${script.env.RUN_DISPLAY_URL} \"点击跳转到 jenkins 构建页面\")", elapsedTime, runCnt, nowTime, runStrategy, it.mark]])
+                            table.addColumns([[it.name, groupName, "[${table.SUCCESS_LABEL}](${script.env.RUN_DISPLAY_URL} \"点击跳转到 jenkins 构建页面\")", elapsedTime, runCnt, nowTime, runStrategy, it.mark]])
                         } else if (buildResult == 1) {
-                            table.addColumns([[it.name, group, "[${table.FAILURE_LABEL}](${script.env.RUN_DISPLAY_URL} \"点击跳转到 jenkins 构建页面\")", elapsedTime, runCnt, nowTime, runStrategy, it.mark]])
+                            table.addColumns([[it.name, groupName, "[${table.FAILURE_LABEL}](${script.env.RUN_DISPLAY_URL} \"点击跳转到 jenkins 构建页面\")", elapsedTime, runCnt, nowTime, runStrategy, it.mark]])
                         } else if (buildResult == 2) {
-                            table.addColumns([[it.name, group, "[${table.ABORTED_LABEL}](${script.env.RUN_DISPLAY_URL} \"点击跳转到 jenkins 构建页面\")", elapsedTime, runCnt, nowTime, runStrategy, it.mark]])
+                            table.addColumns([[it.name, groupName, "[${table.ABORTED_LABEL}](${script.env.RUN_DISPLAY_URL} \"点击跳转到 jenkins 构建页面\")", elapsedTime, runCnt, nowTime, runStrategy, it.mark]])
                         } else if (buildResult == 3) {
-                            table.addColumns([[it.name, group, "[${table.NOT_NEED_RUN_LABEL}](${script.env.RUN_DISPLAY_URL} \"点击跳转到 jenkins 构建页面\")", elapsedTime, runCnt, nowTime, runStrategy, it.mark]])
+                            table.addColumns([[it.name, groupName, "[${table.NOT_NEED_RUN_LABEL}](${script.env.RUN_DISPLAY_URL} \"点击跳转到 jenkins 构建页面\")", elapsedTime, runCnt, nowTime, runStrategy, it.mark]])
                         }
                         giteeApi.comment(table.text)
                         if (error && it.fastFail as boolean) {
-                            logger.error("[${it.name}] 258: ${error}")
                             throw error
                         }
                     }
                 }
+                group.addGroup(groupName as String, body)
+                logger.debug("group: \${group.getGroup(groupName)} add group: ${groupName} success")
             }
         } else {
             stagesInfo.each { k, v ->
-                parallelStage[k as String] = {
+                group.addGroup(k as String){
                     v.each {
                         def needRun = event.needRunStageNotCI(it as Map<String, Object>, error)
                         script.stage(it.name) {
                             if (needRun) {
                                 try {
-                                    stageRun(it.name as String, stages.get(it.name) as Closure)
+                                    script.stage(it.name, group.getStage(it.name as String))
                                 } catch (Exception e) {
                                     error = e as Exception
                                     logger.debug("[${it.name}] 202: ${e}")
+                                }
+                            }else {
+                                script.stage(it.name){
+                                    org.jenkinsci.plugins.pipeline.modeldefinition.Utils.markStageSkippedForConditional(it.name)
                                 }
                             }
                         }
@@ -303,31 +303,17 @@ class ManCI implements Serializable {
                 }
             }
         }
-        if (failFast) {
-            parallelStage['failFast'] = true
+        try{
+            if (runModel == "parallel"){
+                parallelRun()
+            }else {
+                signalRun()
+            }
+        }catch (Exception e){
+            logger.error("ManCI Finished with error: ${e}")
+            error = e
         }
 
-        Closure beforeStage = parallelStage.get("before") as Closure
-        Closure afterStage = parallelStage.get("after") as Closure
-        if (beforeStage) {
-            parallelStage.remove("before")
-            beforeStage.call()
-        }
-        if (afterStage) {
-            parallelStage.remove("after")
-        }
-
-
-        try {
-            script.parallel parallelStage
-        } catch (Exception e) {
-            logger.error("parallel with error: ${e}")
-            error = e as Exception
-        }
-
-        if (afterStage) {
-            afterStage.call()
-        }
         if (!error && table && !table.isSuccessful()) {
             error = new Exception("存在未成功的 stage，此次构建将以失败状态退出")
         }
@@ -336,6 +322,34 @@ class ManCI implements Serializable {
             logger.error("ManCI Finished with error: ${error}")
             throw error
         }
-        logger.info "ManCI Finished"
+    }
+    def signalRun() {
+        group.groups.each {
+            if (it.value instanceof Closure) {
+                it.value.call()
+            }
+        }
+    }
+    def parallelRun() {
+        group.groups.put('failFast', failFast)
+        Closure beforeStage = group.groups.get("before") as Closure
+        Closure afterStage = group.groups.get("after") as Closure
+        if (beforeStage instanceof Closure) {
+            group.groups.remove("before")
+            beforeStage.call()
+        }
+        if (afterStage) {
+            group.groups.remove("after")
+        }
+
+        try {
+            script.parallel(group.groups)
+        } catch (Exception e) {
+            throw e
+        }
+
+        if (afterStage instanceof Closure) {
+            afterStage.call()
+        }
     }
 }

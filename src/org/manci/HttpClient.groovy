@@ -6,16 +6,17 @@ import groovy.json.JsonOutput
 import groovyx.net.http.HTTPBuilder
 import groovyx.net.http.ContentType
 import groovyx.net.http.Method
+import java.util.concurrent.ConcurrentHashMap
 
-class HttpClient implements Serializable{
+class HttpClient implements Serializable {
     private final String baseUrl
     private final String token
     def script
     Logger logger
     Utils utils
-    def headers = ["Content-Type": "application/json;charset=UTF-8"]
+    ConcurrentHashMap headers = ["Content-Type": "application/json;charset=UTF-8"]
 
-    HttpClient(script, String baseUrl, Map<String ,String> headers = [:]) {
+    HttpClient(script, String baseUrl, Map<String, String> headers = [:]) {
         this.baseUrl = baseUrl
         this.token = token
         this.headers.putAll(headers)
@@ -23,23 +24,23 @@ class HttpClient implements Serializable{
         logger = new Logger(script)
         utils = new Utils(script)
     }
-
+    @NonCPS
     def post(String path, body = null, Map<String, String> queryParams = [:], Map<String, String> customHeaders = [:]) {
         return request("post", path, body, customHeaders, queryParams)
     }
-
-    def get(String path,  Map<String, String> queryParams = [:], Map<String, String> customHeaders = [:]) {
+    @NonCPS
+    def get(String path, Map<String, String> queryParams = [:], Map<String, String> customHeaders = [:]) {
         return request("get", path, null, customHeaders, queryParams)
     }
-
+    @NonCPS
     def delete(String path, Map<String, String> queryParams = [:], Map<String, String> customHeaders = [:]) {
         return request("delete", path, null, customHeaders, queryParams)
     }
-
+    @NonCPS
     def put(String path, body = null, Map<String, String> queryParams = [:], Map<String, String> customHeaders = [:]) {
         return request("put", path, body, customHeaders, queryParams)
     }
-
+    @NonCPS
     def patch(String path, body = null, Map<String, String> queryParams = [:], Map<String, String> customHeaders = [:]) {
         return request("patch", path, body, customHeaders, queryParams)
     }

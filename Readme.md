@@ -50,65 +50,9 @@ ManCI 是一款专为中国开发者社区打造的 Jenkins 流水线自动化�
 5. **新建 Job**: 新建一个流水线项目，配置参考
 ![Job-config](./resource/Job-config1.png)
 ![Job-config](./resource/Job-config2.png)
+6. 在 gitee 仓库的 webhook 配置中添加 Jenkins 中给出的 webhook 地址
 ### 使用示例
-在你的项目中添加Jenkinsfile，示例如下：
-```groovy
-// Jenkinsfile
-@Library('manci')_
+在你的项目中添加Jenkinsfile，示例参考项目目录下的 [Jenkinsfile.groovy](./Jenkinsfile.groovy)
 
-manci = new ManCI(this, "debug") // 可定义日志级别，默认 info
-
-// 定义参数，这些参数会显示在 jenkins 的参数化构建页面；同时也会显示到 CI 表格下方
-manci.parameters = [
-        [defaultValue: "ManCI V1", description: 'CI的名称，显示在状态表格中', name: 'CIName', type: 'string'],
-        [choices: ['main', 'develop'], description: '选择要部署的分支', name: 'BRANCH_NAME', type: 'choice']
-]
-
-// 定义 ssh 密钥，用来拉取git仓库代码。此密钥必须在 Jenkins 的 Credentials 中存在，类型为 ssh username with private key
-manci.SSH_SECRET_KEY = "xxxxxx"
-
-// 定义 gitee 的 access token，用来访问 gitee 相关的 api 接口，此密钥必须在 Jenkins 的 Credentials 中存在，类型为 secret text
-manci.GITEE_ACCESS_TOKEN_KEY = 'xxxxxx'
-
-manci.withRun(){
-    // 同一个 group 下的 stage 会顺序执行，不同的 group 将会并发执行
-    manci.stage("init", [group: "setup", trigger: ["pr_note", "pr_open"], mark: "[访问地址](#)" ]){
-        echo "setup 组中的 stage 将会最先执行"
-    }
-
-    manci.stage("pr_note", [group: "group1", trigger: ["pr_note"], fileMatches: "'.*'", mark: "[访问地址](#)" ]){
-        sh 'sleep 1'
-    }
-    manci.stage("pr_merge", [group: "group2", trigger: ["pr_merge", "pr_note"], fileMatches: "'Jenkinsfile.groovy'", mark: "[访问地址](#)"]){
-        sh 'sleep 1'
-    }
-    manci.stage("pr_push", [group: "group3", trigger: ["pr_push", "pr_note"], fileMatches: "'.*'"]){
-        sh 'sleep 1'
-    }
-    manci.stage("env_match", [group: "group3", trigger: ["env_match"],envMatches: [role: "and", condition: ["BRANCH_NAME": "main"]]]){
-        sh 'sleep 1'
-    }
-    manci.stage("pr_close", [group: "group3", trigger: ["pr_close"]]){
-        sh 'sleep 1'
-    }
-    manci.stage("pr_tested", [group: "group1", trigger: ["pr_tested"]]){
-        sh 'sleep 1'
-    }
-    manci.stage("pr_approved", [group: "group2", trigger: ["pr_approved"]]){
-        sh 'sleep 1'
-    }
-    manci.stage("pr_open", [group: "group3", trigger: ["pr_open"]]){
-        sh 'sleep 1'
-    }
-    manci.stage("always", [group: "group4", trigger: ["always"]]){
-        sh 'sleep 1'
-        echo "always 组中的 stage 总是执行"
-    }
-    manci.stage("clean", [group: "teardown", trigger: ["pr_merge"], fileMatches: "'.*'"]){
-        echo "teardown 组中的 stage 将会最后执行"
-    }
-}
-
-```
 ### 展示效果
 ![show1](./resource/show1.png)

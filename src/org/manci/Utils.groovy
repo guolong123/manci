@@ -11,14 +11,14 @@ class Utils implements Serializable {
         this.script = script
         logger = new Logger(script)
     }
-
+    @NonCPS
     static getNowTime() {
         def now = new Date()
         def formatter = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss")
         return formatter.format(now)
     }
 
-
+    @NonCPS
     static rexContains(list, str) {
         for (l in list) {
             if (str.matches(l)) {
@@ -27,7 +27,7 @@ class Utils implements Serializable {
         }
         return false
     }
-
+    @NonCPS
     static Map<String, Object> commandParse(String command) {
         /* 这个方法将一段命令行语句解析出来
         例如：
@@ -56,7 +56,7 @@ class Utils implements Serializable {
     }
 
     @NonCPS
-    static LinkedHashMap<String, Object> jsonParse(String json) {
+    LinkedHashMap<String, Object> jsonParse(String json) {
         def parsedJson = new groovy.json.JsonSlurperClassic().parseText(json)
         if (parsedJson instanceof groovy.json.internal.LazyMap) {
             return new LinkedHashMap<>(parsedJson as Map<? extends String, ?>)
@@ -65,7 +65,7 @@ class Utils implements Serializable {
         return linkedJson as LinkedHashMap<String, Object>
     }
 
-
+    @NonCPS
     static String timestampConvert(long timestamp) {
         Integer minutes = 0
         Integer seconds = 0
@@ -86,7 +86,7 @@ class Utils implements Serializable {
 
         return "${formattedMinutes}m${formattedSeconds}s" as String
     }
-
+    @NonCPS
     static long reverseTimestampConvert(String formattedTimestamp) {
         def parts = formattedTimestamp =~ /\d+/ // 使用正则表达式匹配数字序列
 

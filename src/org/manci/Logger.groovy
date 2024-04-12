@@ -8,7 +8,7 @@ class Logger implements Serializable{
         this.script = script
         this.logLevel = script.env.LOGGER_LEVEL ? script.LOGGER_LEVEL : "info"
     }
-
+    @NonCPS
     def info(String msg) {
         if (["info", "debug"].contains(logLevel.toLowerCase())) {
             msg = "[INFO] " + msg
@@ -19,7 +19,7 @@ class Logger implements Serializable{
             }
         }
     }
-
+    @NonCPS
     def debug(String msg) {
         if (logLevel.toLowerCase() == "debug") {
             msg = "[DEBUG] " + msg
@@ -30,7 +30,7 @@ class Logger implements Serializable{
             }
         }
     }
-
+    @NonCPS
     def error(String msg) {
         msg = "[ERROR] " + msg // 无需进行条件判断，无论日志级别如何，都应该输出错误日志
         if (script) {
