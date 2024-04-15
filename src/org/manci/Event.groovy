@@ -178,7 +178,34 @@ class Event {
 
         return needRun
     }
-    boolean needRunStageNotCI(Map<String, Object> stage, Exception error = null) {
+    boolean needRunStageForPush(Map<String, Object> stage, Exception error = null) {
+        // 非 CI 场景下 trigger 为 OnEnv、 Always 、 OnManual、OnBuildPass、OnBuildFailure 时，需要执行
+        List<String> trigger = stage.get("trigger") as List<String>
+
+        boolean needRun = false
+        String fileMatches = stage.get("fileMatches", "") as String
+        if (trigger.contains("OnPush") && this.script.env.giteeActionType && this.script.env.giteeActionType == "PUSH") {
+            Map<String, Object> jsonBody = utils.jsonParse(this.script.env.jsonbody as String) as Map<String, Object>
+            String afterCommit = "${jsonBody.after}"
+            String beforeCommit = "${jsonBody.before}"
+            needRun = eventHandlerMerge(fileMatches, null, afterCommit, beforeCommit)
+            logger.debug("eventHandlerMerge: push, needRun: ${needRun}")
+        }
+        if (trigger.contains("OnEnv")) {
+            needRun = eventHandlerEnv(stage.get("envMatches") as Map<String, Object>)
+        }
+        if (trigger.contains("Always")) {
+            needRun = true
+        }
+        if (trigger.contains("OnBuildPass") && ! error) {
+            needRun = true
+        }
+        if (trigger.contains("OnBuildFailure") && error) {
+            needRun = true
+        }
+        return needRun
+    }
+    boolean needRunStageForManual(Map<String, Object> stage, Exception error = null) {
         // 非 CI 场景下 trigger 为 OnEnv、 Always 、 OnManual、OnBuildPass、OnBuildFailure 时，需要执行
         List<String> trigger = stage.get("trigger") as List<String>
 

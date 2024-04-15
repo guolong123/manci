@@ -8,7 +8,6 @@ import java.util.concurrent.ConcurrentHashMap
 import org.manci.WarningException
 
 
-
 class ManCI implements Serializable {
     transient ConcurrentHashMap<String, List<Map<String, Object>>> stagesInfo = [:] as ConcurrentHashMap
     boolean isCI = false
@@ -41,6 +40,7 @@ class ManCI implements Serializable {
     Event event
     boolean allStageOnComment = false  // 是否允许所有阶段都通过评论触发
     Group group = null
+    String jobTriggerType = "pullRequest" // 触发类型，目前支持：pullRequest, push, manual
 
     ManCI(script, String loggerLevel = "info", String CIName = null, String instructionPrefix = "run") {
         this.script = script
@@ -62,7 +62,7 @@ class ManCI implements Serializable {
     def setParams() {
         List<Object> propertiesParams = []
         logger.debug("params: ${parameters[0].getClass()}")
-        if (this.parameters){
+        if (this.parameters) {
             this.parameters = this.parameters as List<ConcurrentHashMap<String, Object>>
         }
         logger.debug("params: ${parameters[0].getClass()}")
@@ -90,6 +90,7 @@ class ManCI implements Serializable {
         propertiesParams.add(script.booleanParam(name: 'withAlone', description: '独立执行指定的 stage，不执行期依赖的 stage', defaultValue: 'false'))
         script.properties([script.parameters(propertiesParams)])
     }
+
     def stage(String stageName, Map<String, Object> stageConfig, Closure body) {
         def groupName = stageConfig.get("group", "default")
         def trigger = stageConfig.get("trigger", "always")
@@ -111,7 +112,7 @@ class ManCI implements Serializable {
                 "mark"       : mark,
                 "fastFail"   : fastFail,
                 "group"      : groupName
-        ]as ConcurrentHashMap)
+        ] as ConcurrentHashMap)
         group.addStage(stageName, body)
     }
 
@@ -130,7 +131,11 @@ class ManCI implements Serializable {
 
         logger.debug "script.env.ref: ${script.env.ref}"
         if ("${script.env.ref}" != "null" && script.env.giteeActionType != "PUSH") {
-            this.isCI = true
+            this.jobTriggerType = "pullRequest"
+        } else if (script.env.giteeActionType == "PUSH") {
+            this.jobTriggerType = "push"
+        } else {
+            this.jobTriggerType = "manual"
         }
         script.withCredentials([script.string(credentialsId: GITEE_ACCESS_TOKEN_KEY, variable: "GITEE_ACCESS_TOKEN")]) {
             String repoPath = script.env.giteeTargetNamespace + '/' + script.env.giteeTargetRepoName
@@ -140,9 +145,9 @@ class ManCI implements Serializable {
         logger.debug "SSH_SECRET_KEY: ${SSH_SECRET_KEY}"
         logger.debug "isCI: ${this.isCI}"
 
-        script.node(nodeLabels){
+        script.node(nodeLabels) {
             logger.debug("node-delegate: ${delegate.toString()}")
-            if (isCI){
+            if (jobTriggerType == "pullRequest") {
                 giteeApi.label(giteeApi.labelRunning)
             }
 
@@ -156,7 +161,7 @@ class ManCI implements Serializable {
                     logger.debug("${it.key}: ${it.value}")
                 }
 
-                if (this.isCI) {
+                if (jobTriggerType == "pullRequest") {
                     giteeApi.label(giteeApi.labelWaiting)
                     logger.debug "checkout: url ${script.env.giteeTargetRepoSshUrl}, branch: ${script.env.ref}"
 
@@ -181,18 +186,38 @@ class ManCI implements Serializable {
             try {
                 this.run()
             } catch (Exception e) {
-                giteeApi.label(giteeApi.labelFailure)
+                if (jobTriggerType == "pullRequest") {
+                    giteeApi.label(giteeApi.labelFailure)
+                }
                 throw e
             }
-            if (isCI){
+            if (jobTriggerType == "pullRequest") {
                 giteeApi.label(giteeApi.labelSuccess)
                 giteeApi.testPass()
             }
         }
     }
 
-    def run(){
-        if (isCI) {
+    Exception runStage(String name, boolean needRun) {
+        Exception error = null
+        if (needRun) {
+            try {
+                script.stage(name, group.getStage(name as String))
+            } catch (Exception e) {
+                error = e
+                logger.debug("[${name}] 202: ${e}")
+            }
+        } else {
+            script.stage(name) {
+                org.jenkinsci.plugins.pipeline.modeldefinition.Utils.markStageSkippedForConditional(name)
+            }
+        }
+        return error
+    }
+
+
+    def run() {
+        if (jobTriggerType == "pullRequest") {
             List<String> stageNames = [] as List<String>
             stagesInfo.each {
                 it.value.each {
@@ -216,7 +241,7 @@ class ManCI implements Serializable {
                 @NonCPS
                 def body = {
                     stg.each {
-                        if (allStageOnComment && ! it.trigger.contains("OnComment")){
+                        if (allStageOnComment && !it.trigger.contains("OnComment")) {
                             it.trigger.add("OnComment")
                         }
                         it.noteMatches.add("rebuild ${it.name}")
@@ -224,64 +249,61 @@ class ManCI implements Serializable {
                         String elapsedTime = ""
                         String nowTime = ""
                         Integer runCnt = 0
-                        Integer buildResult // 0: success, 1: failure, 2: aborted, 3: skip
+                        Integer buildResult = 0 // 0: success, 1: failure, 2: aborted, 3: skip
                         List<String> failureStages = table.getFailureStages()
                         long startTime = System.currentTimeMillis()
                         boolean needRun = event.needRunStage(it as Map<String, Object>, "gitee", failureStages as List<String>, error)
                         String stageUrl = "${script.env.RUN_DISPLAY_URL} \"点击跳转到 jenkins 构建页面\""
-                        if (!needRun) {
-                            script.stage(it.name) {
-                                // 标记 stage 为跳过
-                                org.jenkinsci.plugins.pipeline.modeldefinition.Utils.markStageSkippedForConditional(it.name)
+                        nowTime = utils.getNowTime()
+                        runCnt = table.getStageRunTotal(it.name as String) + 1
+                        if (needRun) {
+                            boolean needUpdate = table.addColumns([
+                                    [it.name, groupName,
+                                     "[${table.RUNNING_LABEL}](${stageUrl})",
+                                     "0min0s" + "/" + table.getStageRunTotalTime(it.name as String),
+                                     runCnt, nowTime, runStrategy, it.mark]
+                            ])
+                            if (needUpdate) {
+                                giteeApi.comment(table.text)
                             }
-                            buildResult = 3
-                        } else {
-                            nowTime = utils.getNowTime()
-                            runCnt = table.getStageRunTotal(it.name as String) + 1
-                            try {
-                                boolean needUpdate = table.addColumns([[it.name, groupName,
-                                                                        "[${table.RUNNING_LABEL}](${stageUrl})",
-                                                                        "0min0s" + "/" + table.getStageRunTotalTime(it.name as String), runCnt, nowTime, runStrategy, it.mark]])
-                                if (needUpdate) {
-                                    giteeApi.comment(table.text)
-                                }
-                                script.stage(it.name, group.getStage(it.name as String))
-                                buildResult = 0
-                            } catch (WarningException e) {
-                                logger.warn("warning info: ${e.getMessage()}")
-                                stageUrl = "${script.env.RUN_DISPLAY_URL} \"${e.getMessage()}\""
-                                buildResult = 4
-                            }catch (org.jenkinsci.plugins.workflow.steps.FlowInterruptedException e) {
-                                buildResult = 2
-                                error = e as Exception
-                            } catch (InterruptedException e) {
-                                buildResult = 2
-                                error = e as Exception
-                            } catch (NotSerializableException e) {
-                                buildResult = 1
-                                error = e as Exception
-                            } catch (Exception e) {
-                                buildResult = 1
-                                error = e as Exception
-                            }
-                            if (error){
-                                stageUrl = "${script.env.RUN_DISPLAY_URL} \"${error.getMessage()}\""
-                            }
-                            long timeForOne = System.currentTimeMillis() - startTime
-                            String OneTime = utils.timestampConvert(timeForOne)
-                            String runTotalTimeStr
-                            long runTotalTime
-                            if (runCnt > 1) {
-                                runTotalTimeStr = table.getStageRunTotalTime(it.name as String)
-                                runTotalTime = utils.reverseTimestampConvert(runTotalTimeStr) + timeForOne
-
-                            } else {
-                                runTotalTimeStr = OneTime
-                                runTotalTime = utils.reverseTimestampConvert(runTotalTimeStr)
-
-                            }
-                            elapsedTime = utils.timestampConvert(timeForOne) + "/" + utils.timestampConvert(runTotalTime)
                         }
+                        error = runStage(it.name as String, needRun)
+                        logger.debug("error: ${error}, ${error.getClass()}")
+                        if (!needRun) {
+                            buildResult = 3
+                        } else if (error instanceof WarningException) {
+                            logger.warn("warning info: ${error.getMessage()}")
+                            stageUrl = "${script.env.RUN_DISPLAY_URL} \"${error.getMessage()}\""
+                            script.currentBuild.result = "UNSTABLE"
+                            error = null
+                            buildResult = 4
+                        } else if (error instanceof org.jenkinsci.plugins.workflow.steps.FlowInterruptedException) {
+                            buildResult = 2
+                        } else if (error instanceof InterruptedException) {
+                            buildResult = 2
+                        } else if (error instanceof NotSerializableException) {
+                            buildResult = 1
+                        } else if (error instanceof Exception) {
+                            buildResult = 1
+                        }
+
+                        if (error) {
+                            stageUrl = "${script.env.RUN_DISPLAY_URL} \"${error.getMessage()}\""
+                        }
+                        long timeForOne = System.currentTimeMillis() - startTime
+                        String OneTime = utils.timestampConvert(timeForOne)
+                        String runTotalTimeStr
+                        long runTotalTime
+                        if (runCnt > 1) {
+                            runTotalTimeStr = table.getStageRunTotalTime(it.name as String)
+                            runTotalTime = utils.reverseTimestampConvert(runTotalTimeStr) + timeForOne
+
+                        } else {
+                            runTotalTimeStr = OneTime
+                            runTotalTime = utils.reverseTimestampConvert(runTotalTimeStr)
+
+                        }
+                        elapsedTime = utils.timestampConvert(timeForOne) + "/" + utils.timestampConvert(runTotalTime)
 
                         if (buildResult == 0) {
                             table.addColumns([[it.name, groupName, "[${table.SUCCESS_LABEL}](${stageUrl})", elapsedTime, runCnt, nowTime, runStrategy, it.mark]])
@@ -291,7 +313,7 @@ class ManCI implements Serializable {
                             table.addColumns([[it.name, groupName, "[${table.ABORTED_LABEL}](${stageUrl})", elapsedTime, runCnt, nowTime, runStrategy, it.mark]])
                         } else if (buildResult == 3) {
                             table.addColumns([[it.name, groupName, "[${table.NOT_NEED_RUN_LABEL}](${stageUrl})", elapsedTime, runCnt, nowTime, runStrategy, it.mark]])
-                        }else if (buildResult == 4) {
+                        } else if (buildResult == 4) {
                             table.addColumns([[it.name, groupName, "[${table.WARNING_LABEL}](${stageUrl})", elapsedTime, runCnt, nowTime, runStrategy, it.mark]])
                         }
                         giteeApi.comment(table.text)
@@ -303,36 +325,32 @@ class ManCI implements Serializable {
                 group.addGroup(groupName as String, body)
                 logger.debug("group: \${group.getGroup(groupName)} add group: ${groupName} success")
             }
+        } else if (jobTriggerType == "push") {
+            stagesInfo.each { k, v ->
+                group.addGroup(k as String) {
+                    v.each {
+                        def needRun = event.needRunStageForPush(it as Map<String, Object>, error)
+                        runStage(it.name as String, needRun)
+                    }
+                }
+            }
         } else {
             stagesInfo.each { k, v ->
-                group.addGroup(k as String){
+                group.addGroup(k as String) {
                     v.each {
-                        def needRun = event.needRunStageNotCI(it as Map<String, Object>, error)
-                        script.stage(it.name) {
-                            if (needRun) {
-                                try {
-                                    script.stage(it.name, group.getStage(it.name as String))
-                                } catch (Exception e) {
-                                    error = e as Exception
-                                    logger.debug("[${it.name}] 202: ${e}")
-                                }
-                            }else {
-                                script.stage(it.name){
-                                    org.jenkinsci.plugins.pipeline.modeldefinition.Utils.markStageSkippedForConditional(it.name)
-                                }
-                            }
-                        }
+                        def needRun = event.needRunStageForManual(it as Map<String, Object>, error)
+                        runStage(it.name as String, needRun)
                     }
                 }
             }
         }
-        try{
-            if (runModel == "parallel"){
+        try {
+            if (runModel == "parallel") {
                 parallelRun()
-            }else {
+            } else {
                 signalRun()
             }
-        }catch (Exception e){
+        } catch (Exception e) {
             logger.error("ManCI Finished with error: ${e}")
             error = e
         }
@@ -346,6 +364,7 @@ class ManCI implements Serializable {
             throw error
         }
     }
+
     def signalRun() {
         group.groups.each {
             if (it.value instanceof Closure) {
@@ -353,6 +372,7 @@ class ManCI implements Serializable {
             }
         }
     }
+
     def parallelRun() {
         group.groups.put('failFast', failFast)
         Closure beforeStage = group.groups.get("before") as Closure
