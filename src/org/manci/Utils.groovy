@@ -38,9 +38,9 @@ class Utils implements Serializable {
             match.get(1).replaceAll(" ", "<<>>")
         }.split()
 
-        def flag = parts[0]
-        def args = []
-        def kwargs = [:]
+        String flag = parts[0]
+        List<String> args = []
+        Map<String, String> kwargs = [:]
         parts = parts.drop(1)
 
         parts.each { part ->

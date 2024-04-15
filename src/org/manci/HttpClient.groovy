@@ -6,7 +6,6 @@ import groovy.json.JsonOutput
 import groovyx.net.http.HTTPBuilder
 import groovyx.net.http.ContentType
 import groovyx.net.http.Method
-import java.util.concurrent.ConcurrentHashMap
 
 class HttpClient implements Serializable {
     private final String baseUrl
@@ -14,7 +13,7 @@ class HttpClient implements Serializable {
     def script
     Logger logger
     Utils utils
-    ConcurrentHashMap headers = ["Content-Type": "application/json;charset=UTF-8"]
+    Map headers = ["Content-Type": "application/json;charset=UTF-8"]
 
     HttpClient(script, String baseUrl, Map<String, String> headers = [:]) {
         this.baseUrl = baseUrl

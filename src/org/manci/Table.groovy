@@ -1,5 +1,4 @@
 package org.manci
-import java.util.concurrent.ConcurrentHashMap
 
 class Table implements Serializable{
     String tableTag = "MANCI V1"
@@ -16,7 +15,7 @@ class Table implements Serializable{
     public static final ABORTED_LABEL = ":heavy_exclamation_mark: aborted"
     public static final WARNING_LABEL = ":tw-26a0: warning"
 
-    transient ConcurrentHashMap<String, List<String>> table
+    transient Map<String, List<String>> table
 
     def script
     Logger logger
@@ -154,7 +153,7 @@ class Table implements Serializable{
         def header = headerLine.split(' \\| ')[1..-1].collect { it.trim() }
         // 提取表格数据
         def rows = tableLines[2..-1].collect { it.split(' \\| ')[1..-1].collect { it.trim() } }
-        table = [header: header, columns: rows] as ConcurrentHashMap<String, List<String>>
+        table = [header: header, columns: rows] as Map<String, List<String>>
     }
 
     @NonCPS

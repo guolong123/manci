@@ -9,7 +9,7 @@ import org.manci.WarningException
 
 
 class ManCI implements Serializable {
-    transient ConcurrentHashMap<String, List<Map<String, Object>>> stagesInfo = [:] as ConcurrentHashMap
+    transient Map<String, List<Map<String, Object>>> stagesInfo = [:]
     boolean isCI = false
     public String CIName = "ManCI V1"
     Table table = null
@@ -18,7 +18,7 @@ class ManCI implements Serializable {
     GiteeApi giteeApi
     String runModel = "parallel" // single, parallel
     String instructionPrefix = "run"
-    transient public List<ConcurrentHashMap<String, Object>> parameters
+    transient public List<Map<String, Object>> parameters
     public String projectDescription = """
 ## 指令说明
 **指令**: `${instructionPrefix} [stageName [stageName...]|groupName [groupName...]|failure] [env1=value1 env2=value2...] [withAlone=true|false]`
@@ -27,7 +27,6 @@ class ManCI implements Serializable {
 > * 指定一个或多个 `stage name`（空格分隔），重建指定阶段。
 > * 指定一个或多个 `group name`（空格分隔），可以触发一组相关的 stage 进行重建。
 > * 使用 `${instructionPrefix} failure` 重建所有失败阶段。
-> * 使用 `${instructionPrefix} [groupName]` 构建分组下所有阶段。
 > * 可选地附加一组环境变量设置（键值对，等号分隔），在重建过程中将其注入到运行时环境中。
 > * 通过添加参数 withAlone=true，确保仅执行当前指定的 stage，而不执行其关联的其他 stage。默认情况下，withAlone=false，即可能执行与指定 stage 关联的其他 stage。
 """
@@ -63,7 +62,7 @@ class ManCI implements Serializable {
         List<Object> propertiesParams = []
         logger.debug("params: ${parameters[0].getClass()}")
         if (this.parameters) {
-            this.parameters = this.parameters as List<ConcurrentHashMap<String, Object>>
+            this.parameters = this.parameters as List<Map<String, Object>>
         }
         logger.debug("params: ${parameters[0].getClass()}")
         this.parameters.each {
@@ -95,7 +94,7 @@ class ManCI implements Serializable {
         def groupName = stageConfig.get("group", "default")
         def trigger = stageConfig.get("trigger", "always")
         // always, pr_merge, pr_open, pr_close, pr_push, pr_test_pass, pr_review_pass, env_match, file_match
-        ConcurrentHashMap<String, Object> envMatches = stageConfig.get("envMatches", [:]) as ConcurrentHashMap<String, Object>
+        Map<String, Object> envMatches = stageConfig.get("envMatches", [:]) as Map<String, Object>
         String fileMatches = stageConfig.get("fileMatches", "") as String
         List<String> noteMatches = stageConfig.get("noteMatches", []) as List<String>
         String mark = stageConfig.get("mark", "") as String
@@ -112,8 +111,15 @@ class ManCI implements Serializable {
                 "mark"       : mark,
                 "fastFail"   : fastFail,
                 "group"      : groupName
-        ] as ConcurrentHashMap)
+        ])
         group.addStage(stageName, body)
+    }
+
+    def setEnvironment(Map<String, String> envArgs) {
+        envArgs.each { key, value ->
+            logger.debug("${key}: ${value}")
+            this.script.env.putAt(key, value)
+        }
     }
 
     def withRun(String nodeLabels = null, Closure body) {
@@ -123,10 +129,7 @@ class ManCI implements Serializable {
             logger.debug("noteBody: ${this.script.env.noteBody}")
             def commands = this.utils.commandParse(this.script.env.noteBody as String)
             def envArgs = commands.get("kwargs")
-            envArgs.each { key, value ->
-                logger.debug("${key}: ${value}")
-                this.script.env.putAt(key, value)
-            }
+            setEnvironment(envArgs as Map<String, String>)
         }
 
         logger.debug "script.env.ref: ${script.env.ref}"
@@ -231,31 +234,31 @@ class ManCI implements Serializable {
             table.text = giteeApi.initComment(table.text)
             table.tableParse()  // 从已有的评论中解析出table
             def replyComment = giteeApi.getReplyComment()
-            if (replyComment && replyComment.get("body").toString().startsWith(instructionPrefix)) {
+            if (script.env.giteeActionType == "PUSH" && replyComment && replyComment.get("body").toString().startsWith(instructionPrefix)) {
                 logger.debug "replyComment: ${replyComment}"
                 script.env.noteBody = replyComment.get("body")
                 script.env.forceActionType = "NOTE"
+                def commands = this.utils.commandParse(this.script.env.noteBody as String)
+                logger.debug("commands: ${commands}")
+                def envArgs = commands.get("kwargs") as Map<String, String>
+                setEnvironment(envArgs)
             }
 
             stagesInfo.each { groupName, stg ->
-                @NonCPS
                 def body = {
                     stg.each {
                         if (allStageOnComment && !it.trigger.contains("OnComment")) {
                             it.trigger.add("OnComment")
                         }
-                        it.noteMatches.add("rebuild ${it.name}")
-                        String runStrategy = event.getStageTrigger(it.trigger as List<String>, giteeApi as GiteeApi, it as ConcurrentHashMap<String, Object>)
-                        String elapsedTime = ""
-                        String nowTime = ""
-                        Integer runCnt = 0
+                        it.get('noteMatches').add("rebuild ${it.name}")
+                        String runStrategy = event.getStageTrigger(it.trigger as List<String>, giteeApi as GiteeApi, it as Map<String, Object>)
                         Integer buildResult = 0 // 0: success, 1: failure, 2: aborted, 3: skip
                         List<String> failureStages = table.getFailureStages()
                         long startTime = System.currentTimeMillis()
                         boolean needRun = event.needRunStage(it as Map<String, Object>, "gitee", failureStages as List<String>, error)
                         String stageUrl = "${script.env.RUN_DISPLAY_URL} \"点击跳转到 jenkins 构建页面\""
-                        nowTime = utils.getNowTime()
-                        runCnt = table.getStageRunTotal(it.name as String) + 1
+                        String nowTime = utils.getNowTime()
+                        Integer runCnt = table.getStageRunTotal(it.name as String) + 1
                         if (needRun) {
                             boolean needUpdate = table.addColumns([
                                     [it.name, groupName,
@@ -303,7 +306,7 @@ class ManCI implements Serializable {
                             runTotalTime = utils.reverseTimestampConvert(runTotalTimeStr)
 
                         }
-                        elapsedTime = utils.timestampConvert(timeForOne) + "/" + utils.timestampConvert(runTotalTime)
+                        String elapsedTime = utils.timestampConvert(timeForOne) + "/" + utils.timestampConvert(runTotalTime)
 
                         if (buildResult == 0) {
                             table.addColumns([[it.name, groupName, "[${table.SUCCESS_LABEL}](${stageUrl})", elapsedTime, runCnt, nowTime, runStrategy, it.mark]])
@@ -388,11 +391,15 @@ class ManCI implements Serializable {
         try {
             script.parallel(group.groups)
         } catch (Exception e) {
-            throw e
+            error = e
         }
 
         if (afterStage instanceof Closure) {
             afterStage.call()
+        }
+
+        if (error) {
+            throw error
         }
     }
 }
