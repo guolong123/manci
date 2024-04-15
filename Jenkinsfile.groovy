@@ -1,4 +1,5 @@
 @Library('manci') _
+import org.manci.WarningException
 
 manci = new ManCI(this, "info", "ManCI V1", "rebuild")
 
@@ -62,12 +63,11 @@ manci.withRun() {
         if (env.TEST_BOOLEAN == "false") {
             sh "exit 1"
         }
+        throw new WarningException("警告信息，将不会导致失败")
     }
     manci.stage("push", [group: "group3", trigger: ["OnPush", "OnComment"], fileMatches: "'.*'"]) {
         echo "代码推送时触发"
-        if (env.TEST_BOOLEAN == "false") {
-            sh "exit 1"
-        }
+
     }
     manci.stage("env_match", [group: "group3", trigger: ["OnEnv"], envMatches: [role: "and", condition: ["BRANCH_NAME": "main"]]]) {
             sh 'sleep 1'

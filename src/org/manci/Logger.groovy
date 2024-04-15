@@ -39,5 +39,14 @@ class Logger implements Serializable{
             println msg
         }
     }
+    @NonCPS
+    def warn(String msg) {
+        msg = "[WARNING] " + msg // 无需进行条件判断，无论日志级别如何，都应该输出错误日志
+        if (script) {
+            script.echo msg
+        } else {
+            println msg
+        }
+    }
 
 }

@@ -5,6 +5,7 @@ import org.manci.Utils
 import org.manci.Event
 import org.manci.Group
 import java.util.concurrent.ConcurrentHashMap
+import org.manci.WarningException
 
 
 
@@ -215,6 +216,7 @@ class ManCI implements Serializable {
                         List<String> failureStages = table.getFailureStages()
                         long startTime = System.currentTimeMillis()
                         boolean needRun = event.needRunStage(it as Map<String, Object>, "gitee", failureStages as List<String>, error)
+                        String stageUrl = "${script.env.RUN_DISPLAY_URL} \"点击跳转到 jenkins 构建页面\""
                         if (!needRun) {
                             script.stage(it.name) {
                                 // 标记 stage 为跳过
@@ -226,14 +228,18 @@ class ManCI implements Serializable {
                             runCnt = table.getStageRunTotal(it.name as String) + 1
                             try {
                                 boolean needUpdate = table.addColumns([[it.name, groupName,
-                                                   "[${table.RUNNING_LABEL}](${script.env.RUN_DISPLAY_URL} \"点击跳转到 jenkins 构建页面\")",
-                                                   "0min0s" + "/" + table.getStageRunTotalTime(it.name as String), runCnt, nowTime, runStrategy, it.mark]])
-                                if (needUpdate){
+                                                                        "[${table.RUNNING_LABEL}](${stageUrl})",
+                                                                        "0min0s" + "/" + table.getStageRunTotalTime(it.name as String), runCnt, nowTime, runStrategy, it.mark]])
+                                if (needUpdate) {
                                     giteeApi.comment(table.text)
                                 }
                                 script.stage(it.name, group.getStage(it.name as String))
                                 buildResult = 0
-                            } catch (org.jenkinsci.plugins.workflow.steps.FlowInterruptedException e) {
+                            } catch (WarningException e) {
+                                logger.warn("warning info: ${e.getMessage()}")
+                                stageUrl = "${script.env.RUN_DISPLAY_URL} \"${e.getMessage()}\""
+                                buildResult = 4
+                            }catch (org.jenkinsci.plugins.workflow.steps.FlowInterruptedException e) {
                                 buildResult = 2
                                 error = e as Exception
                             } catch (InterruptedException e) {
@@ -245,6 +251,9 @@ class ManCI implements Serializable {
                             } catch (Exception e) {
                                 buildResult = 1
                                 error = e as Exception
+                            }
+                            if (error){
+                                stageUrl = "${script.env.RUN_DISPLAY_URL} \"${error.getMessage()}\""
                             }
                             long timeForOne = System.currentTimeMillis() - startTime
                             String OneTime = utils.timestampConvert(timeForOne)
@@ -263,13 +272,15 @@ class ManCI implements Serializable {
                         }
 
                         if (buildResult == 0) {
-                            table.addColumns([[it.name, groupName, "[${table.SUCCESS_LABEL}](${script.env.RUN_DISPLAY_URL} \"点击跳转到 jenkins 构建页面\")", elapsedTime, runCnt, nowTime, runStrategy, it.mark]])
+                            table.addColumns([[it.name, groupName, "[${table.SUCCESS_LABEL}](${stageUrl})", elapsedTime, runCnt, nowTime, runStrategy, it.mark]])
                         } else if (buildResult == 1) {
-                            table.addColumns([[it.name, groupName, "[${table.FAILURE_LABEL}](${script.env.RUN_DISPLAY_URL} \"点击跳转到 jenkins 构建页面\")", elapsedTime, runCnt, nowTime, runStrategy, it.mark]])
+                            table.addColumns([[it.name, groupName, "[${table.FAILURE_LABEL}](${stageUrl})", elapsedTime, runCnt, nowTime, runStrategy, it.mark]])
                         } else if (buildResult == 2) {
-                            table.addColumns([[it.name, groupName, "[${table.ABORTED_LABEL}](${script.env.RUN_DISPLAY_URL} \"点击跳转到 jenkins 构建页面\")", elapsedTime, runCnt, nowTime, runStrategy, it.mark]])
+                            table.addColumns([[it.name, groupName, "[${table.ABORTED_LABEL}](${stageUrl})", elapsedTime, runCnt, nowTime, runStrategy, it.mark]])
                         } else if (buildResult == 3) {
-                            table.addColumns([[it.name, groupName, "[${table.NOT_NEED_RUN_LABEL}](${script.env.RUN_DISPLAY_URL} \"点击跳转到 jenkins 构建页面\")", elapsedTime, runCnt, nowTime, runStrategy, it.mark]])
+                            table.addColumns([[it.name, groupName, "[${table.NOT_NEED_RUN_LABEL}](${stageUrl})", elapsedTime, runCnt, nowTime, runStrategy, it.mark]])
+                        }else if (buildResult == 4) {
+                            table.addColumns([[it.name, groupName, "[${table.WARNING_LABEL}](${stageUrl})", elapsedTime, runCnt, nowTime, runStrategy, it.mark]])
                         }
                         giteeApi.comment(table.text)
                         if (error && it.fastFail as boolean) {
