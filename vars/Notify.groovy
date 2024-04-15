@@ -52,9 +52,15 @@ class Notify {
     }
 
     def sendFailureMessage(String message=null, String title="", String linkText="", String user="") {
+        if(!title){
+            title = "[PR]: [${script.env.giteePullRequestTitle}](https://gitee.com/${script.env.giteeTargetNamespace}/${script.env.giteeTargetRepoName}/pulls/${script.env.giteePullRequestIid}) Success"
+        }
         sendMessage("error", message, title, linkText, user)
     }
     def sendSuccessMessage(String message=null, String title="", String linkText="", String user="") {
+        if(!title){
+            title = "[PR]: [${script.env.giteePullRequestTitle}](https://gitee.com/${script.env.giteeTargetNamespace}/${script.env.giteeTargetRepoName}/pulls/${script.env.giteePullRequestIid}) Failure"
+        }
         sendMessage("info", message, title, linkText, user)
     }
 
