@@ -1,7 +1,7 @@
 @Library('manci') _
 import org.manci.WarningException
 
-manci = new ManCI(this, "info", "ManCI V1", "rebuild")
+manci = new ManCI(this, "debug", "ManCI V1", "rebuild")
 
 //notify = new Notify(this, "qyweixin", "2d5f4257-9b32-4211-93ec-4d266cd83bbb")
 
@@ -52,24 +52,24 @@ manci.withRun() {
         }
     }
 
-    manci.stage("pr_note", [group: "group1", trigger: ["OnComment"], mark: "[访问地址](#)"]) {
+    manci.stage("pr_note", [group: "group1", trigger: ["OnComment", "OnManual"], mark: "[访问地址](#)"]) {
         sh 'sleep 1'
     }
-    manci.stage("pr_merge", [group: "group2", trigger: ["OnMerge", "OnComment"], fileMatches: "'Jenkinsfile.groovy'", mark: "[访问地址](#)"]) {
+    manci.stage("pr_merge", [group: "group2", trigger: ["OnMerge", "OnComment", "OnManual"], fileMatches: "'Jenkinsfile.groovy'", mark: "[访问地址](#)"]) {
         sh 'sleep 1'
     }
-    manci.stage("pr_update", [group: "group3", trigger: ["OnUpdate", "OnComment"], fileMatches: "'.*'"]) {
+    manci.stage("pr_update", [group: "group3", trigger: ["OnUpdate", "OnComment", "OnManual"], fileMatches: "'.*'"]) {
         echo "Pr 更新时触发"
         if (env.TEST_BOOLEAN == "false") {
             sh "exit 1"
         }
         throw new WarningException("警告信息，将不会导致失败")
     }
-    manci.stage("push", [group: "group3", trigger: ["OnPush", "OnComment"], fileMatches: "'.*'"]) {
+    manci.stage("push", [group: "group3", trigger: ["OnPush", "OnComment", "OnManual"], fileMatches: "'.*'"]) {
         echo "代码推送时触发"
 
     }
-    manci.stage("env_match", [group: "group3", trigger: ["OnEnv"], envMatches: [role: "and", condition: ["BRANCH_NAME": "main"]]]) {
+    manci.stage("env_match", [group: "group3", trigger: ["OnEnv", "OnManual"], envMatches: [role: "and", condition: ["BRANCH_NAME": "main"]]]) {
             sh 'sleep 1'
     }
     manci.stage("pr_close", [group: "group3", trigger: ["OnClose"]]) {

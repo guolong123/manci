@@ -179,10 +179,9 @@ class Event {
         return needRun
     }
     boolean needRunStageNotCI(Map<String, Object> stage, Exception error = null) {
-        // 非 CI 场景下仅支持环境变量匹配和 always 条件下的执行，其他 PR 相关的触发条件将不会触发
+        // 非 CI 场景下 trigger 为 OnEnv、 Always 、 OnManual、OnBuildPass、OnBuildFailure 时，需要执行
         List<String> trigger = stage.get("trigger") as List<String>
-        Map<String, Object> jsonBody = utils.jsonParse(this.script.env.jsonbody as String) as Map<String, Object>
-        String fileMatches = stage.get("fileMatches", "") as String
+
         boolean needRun = false
         if (trigger.contains("OnEnv")) {
             needRun = eventHandlerEnv(stage.get("envMatches") as Map<String, Object>)
@@ -190,18 +189,13 @@ class Event {
         if (trigger.contains("Always")) {
             needRun = true
         }
-        if (trigger.contains("OnPush")) {
-            if (this.script.env.giteeActionType && this.script.env.giteeActionType == "PUSH") {
-                String afterCommit = "${jsonBody.after}"
-                String beforeCommit = "${jsonBody.before}"
-                needRun = eventHandlerMerge(fileMatches, null, afterCommit, beforeCommit)
-                logger.debug("eventHandlerMerge: push, needRun: ${needRun}")
-            }
-        }
         if (trigger.contains("OnBuildPass") && ! error) {
             needRun = true
         }
         if (trigger.contains("OnBuildFailure") && error) {
+            needRun = true
+        }
+        if (trigger.contains("OnManual")){
             needRun = true
         }
         return needRun
@@ -259,7 +253,7 @@ class Event {
             }
         }
         if (trigger.contains("OnComment")) {
-            if (this.script.env.giteeActionType == "NOTE" && jsonBody.action == "comment") {
+            if (script.env.forceActionType == "NOTE" || (this.script.env.giteeActionType == "NOTE" && jsonBody.action == "comment")) {
                 String targetBranch = "origin/${this.script.env.giteeTargetBranch}"
                 needRun = eventHandlerNote(trigger, stageName, groupName, noteMatches, failureStages, fileMatches, targetBranch, script.env.giteePullRequestLastCommit as String)
                 logger.debug("eventHandlerNote: note, needRun: ${needRun}")
@@ -275,6 +269,7 @@ class Event {
         if (trigger.contains("OnBuildFailure") && error) {
             needRun = true
         }
+
         return needRun
 
     }

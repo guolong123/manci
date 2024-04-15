@@ -127,25 +127,29 @@ class ManCI implements Serializable {
                 this.script.env.putAt(key, value)
             }
         }
+
+        logger.debug "script.env.ref: ${script.env.ref}"
+        if ("${script.env.ref}" != "null" && script.env.giteeActionType != "PUSH") {
+            this.isCI = true
+        }
         script.withCredentials([script.string(credentialsId: GITEE_ACCESS_TOKEN_KEY, variable: "GITEE_ACCESS_TOKEN")]) {
             String repoPath = script.env.giteeTargetNamespace + '/' + script.env.giteeTargetRepoName
             logger.debug "script.env.GITEE_ACCESS_TOKEN: ${script.env.GITEE_ACCESS_TOKEN}"
             giteeApi = new GiteeApi(script, "${script.env.GITEE_ACCESS_TOKEN}", repoPath, script.env.giteePullRequestIid, CIName)
-        }
-        logger.debug "script.env.ref: ${script.env.ref}"
-        if ("${script.env.ref}" != "null" && script.env.giteeActionType != "PUSH") {
-            this.isCI = true
         }
         logger.debug "SSH_SECRET_KEY: ${SSH_SECRET_KEY}"
         logger.debug "isCI: ${this.isCI}"
 
         script.node(nodeLabels){
             logger.debug("node-delegate: ${delegate.toString()}")
-            giteeApi.label(giteeApi.labelRunning)
+            if (isCI){
+                giteeApi.label(giteeApi.labelRunning)
+            }
+
             script.stage("checkout") {
-//                if (script.env.LOGGER_LEVEL && script.env.LOGGER_LEVEL.toLowerCase() == "debug") {
-//                    script.sh 'env'
-//                }
+                if (script.env.LOGGER_LEVEL && script.env.LOGGER_LEVEL.toLowerCase() == "debug") {
+                    script.sh 'env'
+                }
                 def scmVars = script.checkout script.scm
                 logger.debug("scmVars type: ${scmVars.getClass()}")
                 scmVars.each {
@@ -180,8 +184,10 @@ class ManCI implements Serializable {
                 giteeApi.label(giteeApi.labelFailure)
                 throw e
             }
-            giteeApi.label(giteeApi.labelSuccess)
-            giteeApi.testPass()
+            if (isCI){
+                giteeApi.label(giteeApi.labelSuccess)
+                giteeApi.testPass()
+            }
         }
     }
 
@@ -198,8 +204,14 @@ class ManCI implements Serializable {
             table.init(stageNames)
 
             table.text = giteeApi.initComment(table.text)
-//            logger.debug("table.text: ${table.text}")
             table.tableParse()  // 从已有的评论中解析出table
+            def replyComment = giteeApi.getReplyComment()
+            if (replyComment && replyComment.get("body").toString().startsWith(instructionPrefix)) {
+                logger.debug "replyComment: ${replyComment}"
+                script.env.noteBody = replyComment.get("body")
+                script.env.forceActionType = "NOTE"
+            }
+
             stagesInfo.each { groupName, stg ->
                 @NonCPS
                 def body = {
