@@ -34,7 +34,7 @@ class Table implements Serializable {
     }
 
     @NonCPS
-    def init(List<String> stageList = []) {
+    def init(List<List<String>> stageList = []) {
         if (this.commentBody) {
             // this.log.debug("commentBody: ${commentBody}")
             tableParse()
@@ -43,7 +43,7 @@ class Table implements Serializable {
             // this.log.debug("stageList: ${stageList}")
             def columnList = []
             stageList.each { col ->
-                columnList.add([col, "", WAITING_LABEL, "", "", "0", "", ""])
+                columnList.add(col)
             }
             this.table = ["header": this.tableHeader, "columns": columnList]
             tableCreate()

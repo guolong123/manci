@@ -1,0 +1,13 @@
+# ManCI 是一个 Jenkins 流水线自动化框架，借鉴了 GitHub 的 CI 工作流最佳实践，并通过 Jenkins 库的形式，无缝对接国内广泛使用的代码托管平台——Gitee，实现持续集成（CI）与持续交付（CD）工作流。
+## 基本使用
+```groovy
+@Library('manci')_
+manci = new ManCI(this, "debug", "ManCI V1", "rebuild")
+manci.withRun(){
+    manci.stage("stage1", [group: "group1", trigger: ["OnComment", "OnManual"], mark: "[访问地址](#)"]) {
+        sh "exit 0"
+    }
+}
+ ```
+
+ 详细的使用方法参考：[manci](https://gitee.com/guojongg/manci)

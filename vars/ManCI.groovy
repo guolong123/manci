@@ -4,13 +4,14 @@ import org.manci.Logger
 import org.manci.Utils
 import org.manci.Event
 import org.manci.Group
+
+import javax.management.ObjectName
 import java.util.concurrent.ConcurrentHashMap
 import org.manci.WarningException
 
 
 class ManCI implements Serializable {
     transient Map<String, List<Map<String, Object>>> stagesInfo = [:]
-    boolean isCI = false
     public String CIName = "ManCI V1"
     Table table = null
     transient Exception error = null
@@ -153,7 +154,7 @@ class ManCI implements Serializable {
                 giteeApi.label(giteeApi.labelRunning)
             }
 
-            script.stage("checkout") {
+            def checkoutStage = {
                 if (script.env.LOGGER_LEVEL && script.env.LOGGER_LEVEL.toLowerCase() == "debug") {
                     script.sh 'env'
                 }
@@ -181,6 +182,20 @@ class ManCI implements Serializable {
                     ])
                 }
             }
+
+            stagesInfo["before"] = []
+            stagesInfo["before"].add([
+                    "name": "checkout",
+                    "trigger"    : ["Always"],
+                    "envMatches" : [:],
+                    "fileMatches": "",
+                    "noteMatches": [],
+                    "mark"       : "代码检出（内置 stage）",
+                    "fastFail"   : true,
+                    "group"      : "before"
+            ])
+            group.addStage("checkout", checkoutStage)
+
             body.call()
             try {
                 this.run()
@@ -217,17 +232,18 @@ class ManCI implements Serializable {
 
     def run() {
         if (jobTriggerType == "pullRequest") {
-            List<String> stageNames = [] as List<String>
-            stagesInfo.each {
-                it.value.each {
-                    stageNames.add(it.name as String)
-                }
-            }
             def paramsDescription = [] as List<String>
             paramsDescriptionMap.each { name, thisObject ->
-                paramsDescription.add("- **${name}**: ${thisObject.description}, 类型：${thisObject.get("type")}, 默认值: ${thisObject.get("defaultValue")}, 当前值: ${script.env.getAt(name)}")
+                paramsDescription.add("- **${name}**: ${thisObject.description}, 类型：`${thisObject.get("type")}`, 默认值: `${thisObject.get("defaultValue")}`, 当前值: `${script.env.getAt(name)}`")
             }
             table = new Table(script, CIName, "", projectDescription + "\n<details>\n<summary><b>参数说明</b>(点击展开)</summary>\n\n" + paramsDescription.join("\n") + "\n</details>")
+
+            List<List<Object>> stageNames = []
+            stagesInfo.each {
+                it.value.each {
+                    stageNames.add([it.get('name'), it.get('group'), table.WAITING_LABEL, "0m0s/0m0s", "0", "", "", ""])
+                }
+            }
             table.init(stageNames)
 
             table.text = giteeApi.initComment(table.text)
@@ -263,7 +279,7 @@ class ManCI implements Serializable {
                             boolean needUpdate = table.addColumns([
                                     [it.name, groupName,
                                      "[${table.RUNNING_LABEL}](${stageUrl})",
-                                     "0min0s" + "/" + table.getStageRunTotalTime(it.name as String),
+                                     "0m0s" + "/" + table.getStageRunTotalTime(it.name as String),
                                      runCnt, nowTime, runStrategy, it.mark]
                             ])
                             if (needUpdate) {
@@ -290,7 +306,8 @@ class ManCI implements Serializable {
                         }
 
                         if (localError) {
-                            stageUrl = "${script.env.RUN_DISPLAY_URL} \"${localError.getMessage()}\""
+                            stageUrl = "${script.env.RUN_DISPLAY_URL} \"${localError.getMessage().replace('\n', ' ')}\""
+                            logger.info("stageUrl: ${stageUrl}")
                         }
                         long timeForOne = System.currentTimeMillis() - startTime
                         String OneTime = utils.timestampConvert(timeForOne)
