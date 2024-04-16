@@ -81,7 +81,7 @@ class Event {
     boolean eventHandlerMerge(String fileMatches = "", String commitNumber = null, String targetBranch = "", String sourceBranch = null) {
         if (!fileMatches) {
             logger.debug("fileMatches is empty, skip eventHandlerMerge")
-            return false
+            return true
         }
         boolean needRun = false
         String cnt = "0"

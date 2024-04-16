@@ -2,7 +2,7 @@
 import org.manci.WarningException
 
 manci = new ManCI(this, "debug", "ManCI V1", "rebuild")
-
+tools = new Tools(this)
 //notify = new Notify(this, "qyweixin", "2d5f4257-9b32-4211-93ec-4d266cd83bbb")
 
 
@@ -28,28 +28,16 @@ manci.failFast = true  // 是否失败即停止
 
 manci.allStageOnComment = true // 所有 stage 都支持评论触发，触发指令为 rebuild <stageName>
 
-PR_TITLE_CHECK_REX = /(\[)(feat|fix|build|docs|style|refactor|perf|test|revert|chore|upgrade|devops)((\(.+\))?)\](:)( )(.{1,50})([\s\S]*)$/
-
 manci.withRun() {
 
-    manci.stage("check-pr-title", [group: "before", trigger: ["pr_note", "pr_open"], mark: "[访问地址](#)"]) {
-        boolean matcher = (env.giteePullRequestTitle ==~ PR_TITLE_CHECK_REX)
-        if (!matcher) {
-            throw new Exception("PR提交不规范, 内容: ${giteePullRequestTitle}")
-        } else {
-            echo "PR提交符合规范"
-        }
+    manci.stage("check-pr-title", [group: "before", trigger: ["OnComment", "OnUpdate"], mark: "[访问地址](#)"]) {
+        tools.checkPrTitle(env.giteePullRequestTitle as String)
     }
 
-    manci.stage("check-commit", [group: "before", trigger: ["pr_note", "pr_open"], mark: "[访问地址](#)"]) {
-        commits = sh(script: "git log --left-right --format=%s origin/${env.giteeTargetBranch}...${env.ref}", returnStdout: true)
-        echo "commits: ${commits}"
-        boolean matcher = (env.giteePullRequestTitle ==~ PR_TITLE_CHECK_REX)
-        if (!matcher) {
-            throw new Exception("commit message 提交不规范, 内容: ${commits}")
-        } else {
-            echo "commit message 符合规范"
-        }
+    manci.stage("check-commit", [group: "before", trigger: ["OnComment", "OnUpdate"], mark: "[访问地址](#)"]) {
+        String commitStr = sh(script: "git log --left-right --format=%s origin/${env.giteeTargetBranch}...${env.ref}", returnStdout: true)
+        List<String> commits = commitStr.split("\n")
+        tools.checkPrCommits(commits.subList(1, commits.size()))
     }
 
     manci.stage("pr_note", [group: "group1", trigger: ["OnComment", "OnManual"], mark: "[访问地址](#)"]) {
