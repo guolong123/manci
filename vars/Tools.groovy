@@ -24,6 +24,7 @@ class Tools {
         if (matcher != true){
             throw new WarningException("PR提交不规范, 内容: ${prTitle}")
         }
+        logger.info "pr title 检查成功"
     }
 
     def checkPrCommits(List<String> prCommits ) {
@@ -34,5 +35,6 @@ class Tools {
                 throw new WarningException("Commit提交不规范, 内容: ${it}")
             }
         }
+        logger.info "pr commit 检查成功"
     }
 }

@@ -126,7 +126,7 @@ class Event {
         if (stageNames.size() == 0) {
             // 当直接评论 ${instructionPrefix} 时，会重新以代码提交的事件重新运行
             logger.debug("eventHandlerNote: stageNames is empty, fileMatches: ${fileMatches}, targetBranch: ${targetBranch}, stageName: ${stageName}")
-            if (triggers.contains("pr_push")) {
+            if (triggers.contains("OnUpdate")) {
                 needRun = eventHandlerMerge(fileMatches, null, targetBranch, sourceBranch)
             } else {
                 needRun = false

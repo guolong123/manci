@@ -43,7 +43,7 @@ class Notify {
 
     def sendMessage(String level="info", String message=null, String title="", String linkText="", String user="") {
         message = messageFormat(message, level, title, linkText, user)
-        logger.debug("sendMessage: ${message}")
+        logger.info("sendMessage: ${message}")
         if (webhookType == "dingtalk") {
             sendDingTalkMessage(message)
         } else if (webhookType == "qyweixin") {
@@ -53,13 +53,13 @@ class Notify {
 
     def sendFailureMessage(String message=null, String title="", String linkText="", String user="") {
         if(!title){
-            title = "[PR]: [${script.env.giteePullRequestTitle}](https://gitee.com/${script.env.giteeTargetNamespace}/${script.env.giteeTargetRepoName}/pulls/${script.env.giteePullRequestIid}) Success"
+            title = "[PR]: [${script.env.giteePullRequestTitle}](https://gitee.com/${script.env.giteeTargetNamespace}/${script.env.giteeTargetRepoName}/pulls/${script.env.giteePullRequestIid}) Failure"
         }
         sendMessage("error", message, title, linkText, user)
     }
     def sendSuccessMessage(String message=null, String title="", String linkText="", String user="") {
         if(!title){
-            title = "[PR]: [${script.env.giteePullRequestTitle}](https://gitee.com/${script.env.giteeTargetNamespace}/${script.env.giteeTargetRepoName}/pulls/${script.env.giteePullRequestIid}) Failure"
+            title = "[PR]: [${script.env.giteePullRequestTitle}](https://gitee.com/${script.env.giteeTargetNamespace}/${script.env.giteeTargetRepoName}/pulls/${script.env.giteePullRequestIid}) Success"
         }
         sendMessage("info", message, title, linkText, user)
     }

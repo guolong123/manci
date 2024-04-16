@@ -83,7 +83,7 @@ manci.withRun() {
         // 1. 当 CI 执行成功时，会使 PR 测试状态通过
         // 2. 测试通过时会触发 CI ，此时会再次触发 PR 测试状态通过，从而导致死循环，建议 这两者不要同时使用。
         // 关闭执行测试通过事件需要去 Jenkins Job 设置中关闭
-        if (manci.isCI) {
+        if (manci.jobTriggerType == "pullRequest") {
             manci.giteeApi.testPass()
 //            notify.sendSuccessMessage()
         }
@@ -92,7 +92,7 @@ manci.withRun() {
     manci.stage("on-failure", [group: "after", trigger: ["OnBuildFailure"], fastFail: false]) {
         // 当阶段执行失败时执行此阶段，可以用来做通知告警等
         echo "run failure"
-//        if (manci.isCI) {
+//        if (manci.jobTriggerType == "pullRequest") {
 //            notify.sendFailureMessage()
 //        }
     }

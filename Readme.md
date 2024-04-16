@@ -2,7 +2,7 @@
 
 ## 介绍
 
-ManCI 是一款专为中国开发者社区打造的 Jenkins 流水线自动化框架，旨在应对当前 CI 过程中的挑战，借鉴 GitHub 的 CI 工作流最佳实践，并通过 Jenkins 库的形式，无缝对接国内广泛使用的代码托管平台——Gitee，为国内开发团队提供一套便捷、高效、本土化的 CI 解决方案。
+ManCI 是一款的 Jenkins 流水线自动化框架，借鉴了 GitHub 的 CI 工作流最佳实践，并通过 Jenkins 库的形式，无缝对接国内广泛使用的代码托管平台——Gitee，实现持续集成（CI）与持续交付（CD）工作流。
 
 ### 国内 CI 现状与痛点
 
@@ -56,3 +56,7 @@ ManCI 是一款专为中国开发者社区打造的 Jenkins 流水线自动化�
 
 ### 展示效果
 ![show1](./resource/show1.png)
+
+### 参考
+
+[流水线参数说明](./docs/pipeline-params.md)

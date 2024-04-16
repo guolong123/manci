@@ -30,7 +30,7 @@ class ManCI implements Serializable {
 > * 可选地附加一组环境变量设置（键值对，等号分隔），在重建过程中将其注入到运行时环境中。
 > * 通过添加参数 withAlone=true，确保仅执行当前指定的 stage，而不执行其关联的其他 stage。默认情况下，withAlone=false，即可能执行与指定 stage 关联的其他 stage。
 """
-    List<String> paramsDescription = []
+    Map<String, Map<String, Object>> paramsDescriptionMap = [:]
     transient def script
     public String SSH_SECRET_KEY
     public String GITEE_ACCESS_TOKEN_KEY
@@ -66,7 +66,7 @@ class ManCI implements Serializable {
         }
         logger.debug("params: ${parameters[0].getClass()}")
         this.parameters.each {
-            paramsDescription.add("* `${it.name}`: ${it.description}")
+            paramsDescriptionMap.put(it.name as String, ["type": it.type, "description": it.description, "defaultValue": it.defaultValue])
             if (it.type == "choice") {
                 propertiesParams.add(script.choice(name: it.name, description: it.description, choices: it.choices))
             } else if (it.type == "string") {
@@ -124,15 +124,15 @@ class ManCI implements Serializable {
 
     def withRun(String nodeLabels = null, Closure body) {
         setParams()
+        logger.info("action type: ${script.env.giteeActionType}")
         if (this.script.env.noteBody) {
             // 当存在这个环境变量时则解析这个 comment，注入 kv到环境变量
-            logger.debug("noteBody: ${this.script.env.noteBody}")
+            logger.info("noteBody: ${this.script.env.noteBody}")
             def commands = this.utils.commandParse(this.script.env.noteBody as String)
             def envArgs = commands.get("kwargs")
             setEnvironment(envArgs as Map<String, String>)
         }
 
-        logger.debug "script.env.ref: ${script.env.ref}"
         if ("${script.env.ref}" != "null" && script.env.giteeActionType != "PUSH") {
             this.jobTriggerType = "pullRequest"
         } else if (script.env.giteeActionType == "PUSH") {
@@ -145,11 +145,8 @@ class ManCI implements Serializable {
             logger.debug "script.env.GITEE_ACCESS_TOKEN: ${script.env.GITEE_ACCESS_TOKEN}"
             giteeApi = new GiteeApi(script, "${script.env.GITEE_ACCESS_TOKEN}", repoPath, script.env.giteePullRequestIid, CIName)
         }
-        logger.debug "SSH_SECRET_KEY: ${SSH_SECRET_KEY}"
-        logger.debug "isCI: ${this.isCI}"
 
         script.node(nodeLabels) {
-            logger.debug("node-delegate: ${delegate.toString()}")
             if (jobTriggerType == "pullRequest") {
                 giteeApi.label(giteeApi.labelRunning)
             }
@@ -159,11 +156,9 @@ class ManCI implements Serializable {
                     script.sh 'env'
                 }
                 def scmVars = script.checkout script.scm
-                logger.debug("scmVars type: ${scmVars.getClass()}")
                 scmVars.each {
                     logger.debug("${it.key}: ${it.value}")
                 }
-
                 if (jobTriggerType == "pullRequest") {
                     giteeApi.label(giteeApi.labelWaiting)
                     logger.debug "checkout: url ${script.env.giteeTargetRepoSshUrl}, branch: ${script.env.ref}"
@@ -208,7 +203,7 @@ class ManCI implements Serializable {
                 script.stage(name, group.getStage(name as String))
             } catch (Exception e) {
                 error = e
-                logger.debug("[${name}] 202: ${e}")
+                logger.error("stage [${name}] run with error: ${e}")
             }
         } else {
             script.stage(name) {
@@ -227,19 +222,22 @@ class ManCI implements Serializable {
                     stageNames.add(it.name as String)
                 }
             }
-            logger.debug("stagenames: ${stageNames}")
+            def paramsDescription = [] as List<String>
+            paramsDescriptionMap.each {name, thisObject ->
+                paramsDescription.add("- **${name}**: ${thisObject.description}, 类型：${thisObject.get("type")}, 默认值: ${thisObject.get("defaultValue")}, 当前值: ${script.env.getAt(name)}")
+            }
             table = new Table(script, CIName, "", projectDescription + "\n<details>\n<summary><b>参数说明</b>(点击展开)</summary>\n\n" + paramsDescription.join("\n") + "\n</details>")
             table.init(stageNames)
 
             table.text = giteeApi.initComment(table.text)
             table.tableParse()  // 从已有的评论中解析出table
             def replyComment = giteeApi.getReplyComment()
-            if (script.env.giteeActionType == "PUSH" && replyComment && replyComment.get("body").toString().startsWith(instructionPrefix)) {
+            Map<String, Object> jsonBody = utils.jsonParse(this.script.env.jsonbody as String) as Map<String, Object>
+            if (script.env.giteeActionType == "MERGE" && jsonBody.get("action") == "update" && replyComment && replyComment.get("body").toString().startsWith(instructionPrefix)) {
                 logger.debug "replyComment: ${replyComment}"
                 script.env.noteBody = replyComment.get("body")
                 script.env.forceActionType = "NOTE"
                 def commands = this.utils.commandParse(this.script.env.noteBody as String)
-                logger.debug("commands: ${commands}")
                 def envArgs = commands.get("kwargs") as Map<String, String>
                 setEnvironment(envArgs)
             }
@@ -271,7 +269,6 @@ class ManCI implements Serializable {
                             }
                         }
                         error = runStage(it.name as String, needRun)
-                        logger.debug("error: ${error}, ${error.getClass()}")
                         if (!needRun) {
                             buildResult = 3
                         } else if (error instanceof WarningException) {

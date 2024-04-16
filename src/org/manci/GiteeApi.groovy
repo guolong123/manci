@@ -70,10 +70,10 @@ class GiteeApi implements Serializable {
                 commentInfo.put("body", element.body)
                 commentInfo.put("id", element.id)
                 commentInfo.put("in_reply_to_id", element.in_reply_to_id)
+                logger.info("主 CI 评论下存在回复: ${commentInfo}")
                 break
             }
         }
-        logger.debug("commentInfo: ${commentInfo}")
         return commentInfo
     }
 
