@@ -8,7 +8,7 @@ class Event {
     Event(script, String instructionPrefix = null) {
         this.script = script
         logger = new Logger(script)
-        if (instructionPrefix){
+        if (instructionPrefix) {
             this.instructionPrefix = instructionPrefix
         } else {
             this.instructionPrefix = "run"
@@ -35,6 +35,7 @@ class Event {
         }
         return needRun
     }
+
     static String getStageTrigger(List<String> triggers, GiteeApi giteeApi, Map<String, Object> stage) {
         String runStrategy = ""
 
@@ -45,7 +46,7 @@ class Event {
             if (trigger == "OnPush") {
                 runStrategy += "[:fa-paypal:](#note_${giteeApi.CICommentID} \"该Stage可在推送代码匹配正则${stage.fileMatches.replace('|', '\\|')}时自动触发\") "
             }
-            if(trigger == "OnUpdate"){
+            if (trigger == "OnUpdate") {
                 runStrategy += "[:fa-refresh:](#note_${giteeApi.CICommentID} \"该Stage可在代码更新时并且修改的文件路径匹配正则：[${stage.fileMatches.replace('|', '\\|')}] 时自动触发\") "
             }
             if (trigger == "OnMerge") {
@@ -78,6 +79,7 @@ class Event {
         }
         return runStrategy
     }
+
     boolean eventHandlerMerge(String fileMatches = "", String commitNumber = null, String targetBranch = "", String sourceBranch = null) {
         if (!fileMatches) {
             logger.debug("fileMatches is empty, skip eventHandlerMerge")
@@ -101,6 +103,7 @@ class Event {
         }
         return needRun
     }
+
     boolean eventHandlerNote(List<String> triggers, String stageName, String groupName, List<String> noteMatches = [], List<String> failureStages = [], String fileMatches = "", String targetBranch = null, String sourceBranch = null) {
         boolean needRun = false
         Map<String, Object> commandParse = utils.commandParse(this.script.env.noteBody as String)
@@ -146,6 +149,7 @@ class Event {
         }
         return needRun
     }
+
     def eventHandlerEnv(Map<String, Object> envMatches) {
         boolean needRun = true
         String role = envMatches.get('role', 'and')
@@ -178,6 +182,7 @@ class Event {
 
         return needRun
     }
+
     boolean needRunStageForPush(Map<String, Object> stage, Exception error = null) {
         // 非 CI 场景下 trigger 为 OnEnv、 Always 、 OnManual、OnBuildPass、OnBuildFailure 时，需要执行
         List<String> trigger = stage.get("trigger") as List<String>
@@ -198,7 +203,7 @@ class Event {
             needRun = true
         }
 
-        if (trigger.contains("OnBuildPass") && ! error) {
+        if (trigger.contains("OnBuildPass") && !error) {
             needRun = true
         }
         if (trigger.contains("OnBuildFailure") && error) {
@@ -206,6 +211,7 @@ class Event {
         }
         return needRun
     }
+
     boolean needRunStageForManual(Map<String, Object> stage, Exception error = null) {
         // 非 CI 场景下 trigger 为 OnEnv、 Always 、 OnManual、OnBuildPass、OnBuildFailure 时，需要执行
         List<String> trigger = stage.get("trigger") as List<String>
@@ -217,18 +223,19 @@ class Event {
         if (trigger.contains("Always")) {
             needRun = true
         }
-        if (trigger.contains("OnBuildPass") && ! error) {
+        if (trigger.contains("OnBuildPass") && !error) {
             needRun = true
         }
         if (trigger.contains("OnBuildFailure") && error) {
             needRun = true
         }
-        if (trigger.contains("OnManual")){
+        if (trigger.contains("OnManual")) {
             needRun = true
         }
         return needRun
     }
-    boolean giteeCITrigger(Map<String, Object> stage, List<String> failureStages, Exception error=null) {
+
+    boolean giteeCITrigger(Map<String, Object> stage, List<String> failureStages, Exception error = null) {
         boolean needRun = false
         List<String> trigger = stage.get("trigger") as List<String>
         String fileMatches = stage.get("fileMatches", "") as String
@@ -292,7 +299,7 @@ class Event {
             logger.debug("eventHandlerEnv: env_match, needRun: ${needRun}")
         }
         logger.debug("OnBuild For Error: ${error}")
-        if (trigger.contains("OnBuildPass") && ! error) {
+        if (trigger.contains("OnBuildPass") && !error) {
             needRun = true
         }
         if (trigger.contains("OnBuildFailure") && error) {

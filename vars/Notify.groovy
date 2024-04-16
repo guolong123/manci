@@ -41,7 +41,7 @@ class Notify {
         httpClient.post("/robot/send", body, ["key": access_token])
     }
 
-    def sendMessage(String level="info", String message=null, String title="", String linkText="", String user="") {
+    def sendMessage(String level = "info", String message = null, String title = "", String linkText = "", String user = "") {
         message = messageFormat(message, level, title, linkText, user)
         logger.info("sendMessage: ${message}")
         if (webhookType == "dingtalk") {
@@ -51,34 +51,35 @@ class Notify {
         }
     }
 
-    def sendFailureMessage(String message=null, String title="", String linkText="", String user="") {
-        if(!title){
+    def sendFailureMessage(String message = null, String title = "", String linkText = "", String user = "") {
+        if (!title) {
             title = "[PR]: [${script.env.giteePullRequestTitle}](https://gitee.com/${script.env.giteeTargetNamespace}/${script.env.giteeTargetRepoName}/pulls/${script.env.giteePullRequestIid}) Failure"
         }
         sendMessage("warning", message, title, linkText, user)
     }
-    def sendSuccessMessage(String message=null, String title="", String linkText="", String user="") {
-        if(!title){
+
+    def sendSuccessMessage(String message = null, String title = "", String linkText = "", String user = "") {
+        if (!title) {
             title = "[PR]: [${script.env.giteePullRequestTitle}](https://gitee.com/${script.env.giteeTargetNamespace}/${script.env.giteeTargetRepoName}/pulls/${script.env.giteePullRequestIid}) Success"
         }
         sendMessage("info", message, title, linkText, user)
     }
 
-    String messageFormat(String message=null, String level="info", String title="", String linkText="", String user="") {
+    String messageFormat(String message = null, String level = "info", String title = "", String linkText = "", String user = "") {
         String messageResult = ""
-        if (!message){
+        if (!message) {
             message = "构建耗时: ${script.currentBuild.durationString.replace("and counting", "")}"
         }
-        if (!title){
+        if (!title) {
             title = "[PR]: [${script.env.giteePullRequestTitle}](https://gitee.com/${script.env.giteeTargetNamespace}/${script.env.giteeTargetRepoName}/pulls/${script.env.giteePullRequestIid})"
         }
         messageResult += "<font color=\"${level}\">${title}</font>\n>"
         messageResult += message + "\n"
-        if (!linkText){
+        if (!linkText) {
             linkText = "[查看控制台](${script.env.BUILD_URL})"
         }
         messageResult += linkText
-        if (!user && "${script.env.giteeUserName}"){
+        if (!user && "${script.env.giteeUserName}") {
             user = "${script.env.giteeUserName}"
             messageResult += "<@${user}>"
         }

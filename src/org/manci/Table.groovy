@@ -1,6 +1,6 @@
 package org.manci
 
-class Table implements Serializable{
+class Table implements Serializable {
     String tableTag = "MANCI V1"
     List<String> tableHeader = ["检查项", "[分组](# \"分组相同的 stage 将会顺序执行，分组不同的 stage 将会并发执行。另外有2个特殊组：before, after; before 组会最先执行，after 组会最后执行。\")", "检查状态", "执行耗时", "执行次数", "执行时间", "触发策略", "备注"]
     public String text = ""
@@ -32,8 +32,9 @@ class Table implements Serializable{
             this.commentInfo = commentInfo
         }
     }
+
     @NonCPS
-    def init(List<String> stageList = []){
+    def init(List<String> stageList = []) {
         if (this.commentBody) {
             // this.log.debug("commentBody: ${commentBody}")
             tableParse()
@@ -48,14 +49,16 @@ class Table implements Serializable{
             tableCreate()
         }
     }
+
     @NonCPS
-    Boolean isSuccessful(){
+    Boolean isSuccessful() {
         if (this.table.columns.find { it[2].contains(FAILURE_LABEL) || it[2].contains(ABORTED_LABEL) }) {
             return false
         } else {
             return true
         }
     }
+
     @NonCPS
     boolean addColumns(List<List<String>> columnList) {
         columnList.eachWithIndex { row, rowIndex ->
@@ -74,6 +77,7 @@ class Table implements Serializable{
         this.text = tableCreate()
         return true
     }
+
     @NonCPS
     def getStageRunTotal(String stageName) {
         def runTotal = "0"
@@ -83,7 +87,7 @@ class Table implements Serializable{
                 runTotal = t[4]
             }
         }
-        if (! runTotal) {
+        if (!runTotal) {
             runTotal = "0"
         }
         try {
@@ -94,6 +98,7 @@ class Table implements Serializable{
         }
         return num
     }
+
     @NonCPS
     def getStageRunTotalTime(String stageName) {
         String runTotalTime = "0m0s"
@@ -110,6 +115,7 @@ class Table implements Serializable{
         }
         return runTotalTime
     }
+
     @NonCPS
     def getFailureStages() {
         def failureStages = []

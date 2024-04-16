@@ -224,7 +224,7 @@ class ManCI implements Serializable {
                 }
             }
             def paramsDescription = [] as List<String>
-            paramsDescriptionMap.each {name, thisObject ->
+            paramsDescriptionMap.each { name, thisObject ->
                 paramsDescription.add("- **${name}**: ${thisObject.description}, 类型：${thisObject.get("type")}, 默认值: ${thisObject.get("defaultValue")}, 当前值: ${script.env.getAt(name)}")
             }
             table = new Table(script, CIName, "", projectDescription + "\n<details>\n<summary><b>参数说明</b>(点击展开)</summary>\n\n" + paramsDescription.join("\n") + "\n</details>")
@@ -321,7 +321,7 @@ class ManCI implements Serializable {
                         giteeApi.comment(table.text)
                         if (localError && it.fastFail as boolean) {
                             throw localError
-                        }else if(localError){
+                        } else if (localError) {
                             this.error = localError
                         }
                     }
@@ -338,7 +338,7 @@ class ManCI implements Serializable {
                         localError = runStage(it.name as String, needRun)
                         if (localError && it.fastFail as boolean) {
                             throw localError
-                        }else if(localError){
+                        } else if (localError) {
                             this.error = localError
                         }
                     }
@@ -353,7 +353,7 @@ class ManCI implements Serializable {
                         localError = runStage(it.name as String, needRun)
                         if (localError && it.fastFail as boolean) {
                             throw localError
-                        }else if(localError){
+                        } else if (localError) {
                             this.error = localError
                         }
                     }
@@ -397,9 +397,9 @@ class ManCI implements Serializable {
             group.groups.remove("after")
         }
 
-        try{
+        try {
             script.parallel(group.groups)
-        }catch (Exception e){
+        } catch (Exception e) {
             error = e
         }
 

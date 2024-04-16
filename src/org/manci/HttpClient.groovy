@@ -23,22 +23,27 @@ class HttpClient implements Serializable {
         logger = new Logger(script)
         utils = new Utils(script)
     }
+
     @NonCPS
     def post(String path, body = null, Map<String, String> queryParams = [:], Map<String, String> customHeaders = [:]) {
         return request("post", path, body, customHeaders, queryParams)
     }
+
     @NonCPS
     def get(String path, Map<String, String> queryParams = [:], Map<String, String> customHeaders = [:]) {
         return request("get", path, null, customHeaders, queryParams)
     }
+
     @NonCPS
     def delete(String path, Map<String, String> queryParams = [:], Map<String, String> customHeaders = [:]) {
         return request("delete", path, null, customHeaders, queryParams)
     }
+
     @NonCPS
     def put(String path, body = null, Map<String, String> queryParams = [:], Map<String, String> customHeaders = [:]) {
         return request("put", path, body, customHeaders, queryParams)
     }
+
     @NonCPS
     def patch(String path, body = null, Map<String, String> queryParams = [:], Map<String, String> customHeaders = [:]) {
         return request("patch", path, body, customHeaders, queryParams)

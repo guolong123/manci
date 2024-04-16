@@ -13,7 +13,7 @@ manci.parameters = [
         [defaultValue: true, description: '退出状态码(stage 测试用)', name: 'TEST_BOOLEAN', type: 'boolean'],
         [type: 'text', description: '自定义测试用', name: 'TEST_TEXT', defaultValue: ''],
         [type: 'file', description: '自定义测试用', name: 'TEST_FILE'],
-        [type: 'credentials', description: '自定义测试用', name: 'TEST_CREDENTIALS', credentialType:'org.jenkinsci.plugins.plaincredentials.impl.StringCredentialsImpl', defaultValue: '', required: false],
+        [type: 'credentials', description: '自定义测试用', name: 'TEST_CREDENTIALS', credentialType: 'org.jenkinsci.plugins.plaincredentials.impl.StringCredentialsImpl', defaultValue: '', required: false],
         [type: 'password', description: '自定义测试用', name: 'TEST_PASSWORD'],
         [defaultValue: "${env.giteeUserName}", description: 'PR 提交者', name: 'QW_WEBHOOK_USER', type: 'string'],
 ]
@@ -57,7 +57,7 @@ manci.withRun() {
         echo "代码推送时触发"
     }
     manci.stage("env_match", [group: "group3", trigger: ["OnEnv", "OnManual"], envMatches: [role: "and", condition: ["BRANCH_NAME": "main"]]]) {
-            sh 'sleep 1'
+        sh 'sleep 1'
     }
     manci.stage("pr_close", [group: "group3", trigger: ["OnClose"]]) {
         sh 'sleep 1'

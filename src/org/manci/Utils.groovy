@@ -11,6 +11,7 @@ class Utils implements Serializable {
         this.script = script
         logger = new Logger(script)
     }
+
     @NonCPS
     static getNowTime() {
         def now = new Date()
@@ -27,6 +28,7 @@ class Utils implements Serializable {
         }
         return false
     }
+
     @NonCPS
     static Map<String, Object> commandParse(String command) {
         /* 这个方法将一段命令行语句解析出来
@@ -86,6 +88,7 @@ class Utils implements Serializable {
 
         return "${formattedMinutes}m${formattedSeconds}s" as String
     }
+
     @NonCPS
     static long reverseTimestampConvert(String formattedTimestamp) {
         def parts = formattedTimestamp =~ /\d+/ // 使用正则表达式匹配数字序列
