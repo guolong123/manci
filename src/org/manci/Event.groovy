@@ -197,6 +197,7 @@ class Event {
         if (trigger.contains("Always")) {
             needRun = true
         }
+
         if (trigger.contains("OnBuildPass") && ! error) {
             needRun = true
         }
@@ -290,6 +291,7 @@ class Event {
             needRun = eventHandlerEnv(envMatches)
             logger.debug("eventHandlerEnv: env_match, needRun: ${needRun}")
         }
+        logger.debug("OnBuild For Error: ${error}")
         if (trigger.contains("OnBuildPass") && ! error) {
             needRun = true
         }

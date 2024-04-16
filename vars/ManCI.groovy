@@ -145,7 +145,9 @@ class ManCI implements Serializable {
             logger.debug "script.env.GITEE_ACCESS_TOKEN: ${script.env.GITEE_ACCESS_TOKEN}"
             giteeApi = new GiteeApi(script, "${script.env.GITEE_ACCESS_TOKEN}", repoPath, script.env.giteePullRequestIid, CIName)
         }
-
+        if (jobTriggerType == "pullRequest") {
+            giteeApi.label(giteeApi.labelWaiting)
+        }
         script.node(nodeLabels) {
             if (jobTriggerType == "pullRequest") {
                 giteeApi.label(giteeApi.labelRunning)
@@ -160,7 +162,6 @@ class ManCI implements Serializable {
                     logger.debug("${it.key}: ${it.value}")
                 }
                 if (jobTriggerType == "pullRequest") {
-                    giteeApi.label(giteeApi.labelWaiting)
                     logger.debug "checkout: url ${script.env.giteeTargetRepoSshUrl}, branch: ${script.env.ref}"
 
                     script.checkout([$class           : 'GitSCM', branches: [[name: script.env.ref]], extensions: [],
@@ -248,6 +249,7 @@ class ManCI implements Serializable {
                         if (allStageOnComment && !it.trigger.contains("OnComment")) {
                             it.trigger.add("OnComment")
                         }
+                        Exception localError
                         it.get('noteMatches').add("rebuild ${it.name}")
                         String runStrategy = event.getStageTrigger(it.trigger as List<String>, giteeApi as GiteeApi, it as Map<String, Object>)
                         Integer buildResult = 0 // 0: success, 1: failure, 2: aborted, 3: skip
@@ -268,27 +270,27 @@ class ManCI implements Serializable {
                                 giteeApi.comment(table.text)
                             }
                         }
-                        error = runStage(it.name as String, needRun)
+                        localError = runStage(it.name as String, needRun)
                         if (!needRun) {
                             buildResult = 3
-                        } else if (error instanceof WarningException) {
-                            logger.warn("warning info: ${error.getMessage()}")
-                            stageUrl = "${script.env.RUN_DISPLAY_URL} \"${error.getMessage()}\""
+                        } else if (localError instanceof WarningException) {
+                            logger.warn("warning info: ${localError.getMessage()}")
+                            stageUrl = "${script.env.RUN_DISPLAY_URL} \"${localError.getMessage()}\""
                             script.currentBuild.result = "UNSTABLE"
-                            error = null
+                            localError = null
                             buildResult = 4
-                        } else if (error instanceof org.jenkinsci.plugins.workflow.steps.FlowInterruptedException) {
+                        } else if (localError instanceof org.jenkinsci.plugins.workflow.steps.FlowInterruptedException) {
                             buildResult = 2
-                        } else if (error instanceof InterruptedException) {
+                        } else if (localError instanceof InterruptedException) {
                             buildResult = 2
-                        } else if (error instanceof NotSerializableException) {
+                        } else if (localError instanceof NotSerializableException) {
                             buildResult = 1
-                        } else if (error instanceof Exception) {
+                        } else if (localError instanceof Exception) {
                             buildResult = 1
                         }
 
-                        if (error) {
-                            stageUrl = "${script.env.RUN_DISPLAY_URL} \"${error.getMessage()}\""
+                        if (localError) {
+                            stageUrl = "${script.env.RUN_DISPLAY_URL} \"${localError.getMessage()}\""
                         }
                         long timeForOne = System.currentTimeMillis() - startTime
                         String OneTime = utils.timestampConvert(timeForOne)
@@ -317,8 +319,10 @@ class ManCI implements Serializable {
                             table.addColumns([[it.name, groupName, "[${table.WARNING_LABEL}](${stageUrl})", elapsedTime, runCnt, nowTime, runStrategy, it.mark]])
                         }
                         giteeApi.comment(table.text)
-                        if (error && it.fastFail as boolean) {
-                            throw error
+                        if (localError && it.fastFail as boolean) {
+                            throw localError
+                        }else if(localError){
+                            this.error = localError
                         }
                     }
                 }
@@ -328,31 +332,39 @@ class ManCI implements Serializable {
         } else if (jobTriggerType == "push") {
             stagesInfo.each { k, v ->
                 group.addGroup(k as String) {
+                    Exception localError
                     v.each {
                         def needRun = event.needRunStageForPush(it as Map<String, Object>, error)
-                        runStage(it.name as String, needRun)
+                        localError = runStage(it.name as String, needRun)
+                        if (localError && it.fastFail as boolean) {
+                            throw localError
+                        }else if(localError){
+                            this.error = localError
+                        }
                     }
                 }
             }
         } else {
             stagesInfo.each { k, v ->
                 group.addGroup(k as String) {
+                    Exception localError
                     v.each {
                         def needRun = event.needRunStageForManual(it as Map<String, Object>, error)
-                        runStage(it.name as String, needRun)
+                        localError = runStage(it.name as String, needRun)
+                        if (localError && it.fastFail as boolean) {
+                            throw localError
+                        }else if(localError){
+                            this.error = localError
+                        }
                     }
                 }
             }
         }
-        try {
-            if (runModel == "parallel") {
-                parallelRun()
-            } else {
-                signalRun()
-            }
-        } catch (Exception e) {
-            logger.error("ManCI Finished with error: ${e}")
-            error = e
+
+        if (runModel == "parallel") {
+            parallelRun()
+        } else {
+            signalRun()
         }
 
         if (!error && table && !table.isSuccessful()) {
@@ -385,18 +397,15 @@ class ManCI implements Serializable {
             group.groups.remove("after")
         }
 
-        try {
+        try{
             script.parallel(group.groups)
-        } catch (Exception e) {
+        }catch (Exception e){
             error = e
         }
 
         if (afterStage instanceof Closure) {
+            logger.debug("afterStage.delegate.error: ${afterStage.delegate.getAt("error")}")
             afterStage.call()
-        }
-
-        if (error) {
-            throw error
         }
     }
 }

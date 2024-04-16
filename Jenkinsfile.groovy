@@ -55,7 +55,6 @@ manci.withRun() {
     }
     manci.stage("push", [group: "group3", trigger: ["OnPush", "OnComment", "OnManual"], fileMatches: "'.*'"]) {
         echo "代码推送时触发"
-
     }
     manci.stage("env_match", [group: "group3", trigger: ["OnEnv", "OnManual"], envMatches: [role: "and", condition: ["BRANCH_NAME": "main"]]]) {
             sh 'sleep 1'
