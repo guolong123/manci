@@ -290,8 +290,8 @@ class ManCI implements Serializable {
                         if (!needRun) {
                             buildResult = 3
                         } else if (localError instanceof WarningException) {
-                            logger.warn("warning info: ${localError.getMessage()}")
-                            stageUrl = "${script.env.RUN_DISPLAY_URL} \"${localError.getMessage()}\""
+                            logger.warn("warning info: ${localError.getMessage().replace('\n', ' ')}")
+                            stageUrl = "${script.env.RUN_DISPLAY_URL} \"${localError.getMessage().replace('\n', ' ')}\""
                             script.currentBuild.result = "UNSTABLE"
                             localError = null
                             buildResult = 4
