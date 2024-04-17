@@ -39,4 +39,18 @@ class Tools {
         }
         logger.info "pr commit 检查成功"
     }
+
+    def checkoutPR(String sshAgentCredential, String baseBranch, String PrNumberStr = ""){
+        List<String> prNumbers = PrNumberStr.split(" ")
+        script.sshagent([sshAgentCredential]){
+            script.sh "git checkout origin/${baseBranch}"
+            for (pr in prNumbers){
+                def PR_NAME="${script.env.BUILD_ID}_${pr}"
+                script.sh "git fetch origin pull/${pr}/head:${PR_NAME}"
+                logger.info "FETCH PR ${pr} DONE."
+                script.sh "git merge ${PR_NAME}"
+                logger.info "MERGE PR ${pr} DONE."
+            }
+        }
+    }
 }
