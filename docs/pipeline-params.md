@@ -18,7 +18,7 @@ manci.allStageOnComment = true
 * **GITEE_ACCESS_TOKEN_KEY**: 定义 gitee 的 access token，用来访问 gitee 相关的 api 接口，此密钥必须在 Jenkins 的 Credentials 中存在，类型为 secret text
 * **failFast**: 快速失败，在并发执行 stage 时当其中某个 stage 失败，则其它 stage 都立即退出
 * **allStageOnComment**: 是否每个 stage 都允许通过评论触发，不开启时，没有指定触发条件为`OnComment`的 stage 不能通过评论触发
-
+* **autoTest**: 设置为 true 后将在开始前重置当前账号的测试成功状态，执行成功时设置为测试成功，默认为 false
 # Stage 参数
 ## 触发策略
 触发策略通过 stage 的 `trigger` 参数设置，支持的触发策略如下：

@@ -41,6 +41,7 @@ class ManCI implements Serializable {
     boolean allStageOnComment = false  // 是否允许所有阶段都通过评论触发
     Group group = null
     String jobTriggerType = "pullRequest" // 触发类型，目前支持：pullRequest, push, manual
+    boolean autoTest = false
 
     ManCI(script, String loggerLevel = "info", String CIName = null, String instructionPrefix = "run") {
         this.script = script
@@ -147,6 +148,9 @@ class ManCI implements Serializable {
             giteeApi = new GiteeApi(script, "${script.env.GITEE_ACCESS_TOKEN}", repoPath, script.env.giteePullRequestIid, CIName)
         }
         if (jobTriggerType == "pullRequest") {
+            if(autoTest){
+                giteeApi.resetTest()
+            }
             giteeApi.label(giteeApi.labelWaiting)
         }
         script.node(nodeLabels) {
@@ -207,7 +211,9 @@ class ManCI implements Serializable {
             }
             if (jobTriggerType == "pullRequest") {
                 giteeApi.label(giteeApi.labelSuccess)
-                giteeApi.testPass()
+                if(autoTest){
+                    giteeApi.testPass()
+                }
             }
         }
     }
