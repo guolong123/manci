@@ -68,7 +68,7 @@ class ManCI implements Serializable {
         }
         logger.debug("params: ${parameters[0].getClass()}")
         this.parameters.each {
-            paramsDescriptionMap.put(it.name as String, ["type": it.type, "description": it.description, "defaultValue": it.defaultValue])
+            paramsDescriptionMap.put(it.name as String, ["type": it.type, "description": it.description, "defaultValue": it.defaultValue, "choices": it.choices])
             if (it.type == "choice") {
                 propertiesParams.add(script.choice(name: it.name, description: it.description, choices: it.choices))
             } else if (it.type == "string") {
@@ -240,7 +240,16 @@ class ManCI implements Serializable {
         if (jobTriggerType == "pullRequest") {
             def paramsDescription = [] as List<String>
             paramsDescriptionMap.each { name, thisObject ->
-                paramsDescription.add("- **${name}**: ${thisObject.description}, 类型：`${thisObject.get("type")}`, 默认值: `${thisObject.get("defaultValue")}`, 当前值: `${script.env.getAt(name)}`")
+                def defaultValue = ""
+                if(!thisObject.get("type") as String == "string"){
+                    defaultValue = "默认值：${thisObject.get("defaultValue")},"
+                }else if (thisObject.get("type") == "choice"){
+                    defaultValue = "可选项：${thisObject.get("choices").toString()},"
+                }else if (thisObject.get("type") == "boolean"){
+                    defaultValue = "默认值：${thisObject.get("defaultValue") == true ? "true" : "false"},"
+                }
+
+                paramsDescription.add("- **${name}**: ${thisObject.description}, 类型：`${thisObject.get("type")}`, ${defaultValue} 当前值: `${script.env.getAt(name)}`")
             }
             table = new Table(script, CIName, "", projectDescription + "\n<details>\n<summary><b>参数说明</b>(点击展开)</summary>\n\n" + paramsDescription.join("\n") + "\n</details>")
 
