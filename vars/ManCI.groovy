@@ -4,9 +4,6 @@ import org.manci.Logger
 import org.manci.Utils
 import org.manci.Event
 import org.manci.Group
-
-import javax.management.ObjectName
-import java.util.concurrent.ConcurrentHashMap
 import org.manci.WarningException
 
 
@@ -302,6 +299,11 @@ class ManCI implements Serializable {
                             }
                         }
                         localError = runStage(it.name as String, needRun)
+                        String errorMessage = ""
+                        if(localError != null){
+                            errorMessage = localError.getMessage()
+                        }
+
                         if (!needRun) {
                             buildResult = 3
                         } else if (localError instanceof WarningException) {
@@ -312,16 +314,28 @@ class ManCI implements Serializable {
                             buildResult = 4
                         } else if (localError instanceof org.jenkinsci.plugins.workflow.steps.FlowInterruptedException) {
                             buildResult = 2
+                            if (!errorMessage){
+                                errorMessage = "build aborted"
+                            }
                         } else if (localError instanceof InterruptedException) {
                             buildResult = 2
+                            if (!errorMessage){
+                                errorMessage = "build aborted"
+                            }
                         } else if (localError instanceof NotSerializableException) {
                             buildResult = 1
+                            if (!errorMessage){
+                                errorMessage = "序列化错误。尽管该项目中已经尽可能避免 Jenkins 序列化错误，可能还是会存在漏掉的情况，遇到此情况请上报 issue"
+                            }
                         } else if (localError instanceof Exception) {
                             buildResult = 1
+                            if (!errorMessage){
+                                errorMessage = "其它错误，请检查stage 内相关代码逻辑"
+                            }
                         }
 
                         if (localError) {
-                            stageUrl = "${script.env.RUN_DISPLAY_URL} \"${localError.getMessage().replace('\n', ' ')}\""
+                            stageUrl = "${script.env.RUN_DISPLAY_URL} \"${errorMessage.replace('\n', ' ')}\""
                             logger.info("stageUrl: ${stageUrl}")
                         }
                         long timeForOne = System.currentTimeMillis() - startTime
