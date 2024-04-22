@@ -191,7 +191,7 @@ class ManCI implements Serializable {
                     "envMatches" : [:],
                     "fileMatches": "",
                     "noteMatches": [],
-                    "mark"       : "代码检出（内置 stage）",
+                    "mark"       : "[:fa-git-square:](# \"代码检出，这是一个内置的 stage\")",
                     "fastFail"   : true,
                     "group"      : "before"
             ])
