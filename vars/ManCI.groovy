@@ -27,6 +27,7 @@ class ManCI implements Serializable {
 > * 使用 `${instructionPrefix} failure` 重建所有失败阶段。
 > * 可选地附加一组环境变量设置（键值对，等号分隔），在重建过程中将其注入到运行时环境中。
 > * 通过添加参数 withAlone=true，确保仅执行当前指定的 stage，而不执行其关联的其他 stage。默认情况下，withAlone=false，即可能执行与指定 stage 关联的其他 stage。
+> * 在本条评论下回复指令，可以在 `OnUpdate` 事件触发时按照回复的指令进行构建。
 """
     Map<String, Map<String, Object>> paramsDescriptionMap = [:]
     transient def script
