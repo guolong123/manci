@@ -239,7 +239,7 @@ class ManCI implements Serializable {
             def paramsDescription = [] as List<String>
             paramsDescriptionMap.each { name, thisObject ->
                 def defaultValue = ""
-                if(!thisObject.get("type") as String == "string"){
+                if(thisObject.get("type") as String == "string"){
                     defaultValue = "默认值：${thisObject.get("defaultValue")},"
                 }else if (thisObject.get("type") == "choice"){
                     defaultValue = "可选项：${thisObject.get("choices").toString()},"

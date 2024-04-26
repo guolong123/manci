@@ -33,11 +33,11 @@ class Utils implements Serializable {
     static Map<String, Object> commandParse(String command) {
         /* 这个方法将一段命令行语句解析出来
         例如：
-        input: "rebuild stage-test KETADB_PR=1234"
-        return {"flag": "rebuild", "args": ["stage-test"], "kwargs": {"KETADB_PR": "1234"}}
+        input: "rebuild deploy mock-data withAlone=true KETADB_IMAGE_TAG=latest DATABASE_TYPE=mysql MOCK_DATA_TEMPLATE='{"raw":"{{ faker.sentence(nb_words=100) }}", "host": "{{ faker.ipv4_private() }}"}' MOCK_DATA_NUMBER=100 MOCK_DATA_REPO=default"
+        return {"flag": "rebuild", "args": ["deploy", "mock-data"], "kwargs": {"withAlone": "true", "KETADB_IMAGE_TAG": "latest", "DATABASE_TYPE": "mysql", "MOCK_DATA_TEMPLATE": "{"raw":"{{ faker.sentence(nb_words=100) }}", "host": "{{ faker.ipv4_private() }}"}", "MOCK_DATA_NUMBER": "100", "MOCK_DATA_REPO": "default"}}
         */
-        def parts = command.replaceAll(/"([^"]*)"/) { match ->
-            match.get(1).replaceAll(" ", "<<>>")
+        def parts = command.replaceAll(/"([^"]*)"|'([^']*)'/) { match ->
+            match.get(1) ? match.get(1).replaceAll(" ", "<<>>") : match.get(2).replaceAll(" ", "<<>>")
         }.split()
 
         String flag = parts[0]
