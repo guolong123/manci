@@ -165,7 +165,7 @@ class Event {
         condition.each { k, v ->
             Object envValue = script.env.getAt(k)
             if (envValue == null || envValue != v) {
-                logger.info("${envValue} == ${v}")
+                logger.debug("${envValue} == ${v}")
                 // 如果envValue为null，或者不等于v，则根据role决定是否终止检查
                 if (shouldRun) {
                     needRun = false

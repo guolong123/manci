@@ -14,6 +14,7 @@ class ManCI implements Serializable {
     transient Exception error = null
     Logger logger
     GiteeApi giteeApi
+    boolean enablePRLinkShortText = true  // 在 jenkins 构建 job 列表显示 Gitee PR 的 shortText，需要安装 jenkins 插件：https://plugins.jenkins.io/groovy-postbuild
     String runModel = "parallel" // single, parallel
     String instructionPrefix = "run"
     transient public List<Map<String, Object>> parameters
@@ -124,7 +125,7 @@ class ManCI implements Serializable {
 
     def withRun(String nodeLabels = null, Closure body) {
         setParams()
-        utils.addPullRequestLink()
+
         logger.info("action type: ${script.env.giteeActionType}")
         if (this.script.env.noteBody) {
             // 当存在这个环境变量时则解析这个 comment，注入 kv到环境变量
@@ -136,11 +137,16 @@ class ManCI implements Serializable {
 
         if ("${script.env.ref}" != "null" && script.env.giteeActionType != "PUSH") {
             this.jobTriggerType = "pullRequest"
+            if (enablePRLinkShortText){
+                utils.addPullRequestLink()
+            }
         } else if (script.env.giteeActionType == "PUSH") {
             this.jobTriggerType = "push"
         } else {
             this.jobTriggerType = "manual"
         }
+
+
         script.withCredentials([script.string(credentialsId: GITEE_ACCESS_TOKEN_KEY, variable: "GITEE_ACCESS_TOKEN")]) {
             String repoPath = script.env.giteeTargetNamespace + '/' + script.env.giteeTargetRepoName
             logger.debug "script.env.GITEE_ACCESS_TOKEN: ${script.env.GITEE_ACCESS_TOKEN}"
@@ -167,7 +173,6 @@ class ManCI implements Serializable {
                 }
                 if (jobTriggerType == "pullRequest") {
                     logger.debug "checkout: url ${script.env.giteeTargetRepoSshUrl}, branch: ${script.env.ref}"
-
                     script.checkout([$class           : 'GitSCM', branches: [[name: script.env.ref]], extensions: [],
                                      userRemoteConfigs: [[credentialsId: SSH_SECRET_KEY,
                                                           url          : "${script.env.giteeTargetRepoSshUrl}"]]])
@@ -286,7 +291,7 @@ class ManCI implements Serializable {
                         List<String> failureStages = table.getFailureStages()
                         long startTime = System.currentTimeMillis()
                         boolean needRun = event.needRunStage(it as Map<String, Object>, "gitee", failureStages as List<String>, error)
-                        String stageUrl = "${script.env.RUN_DISPLAY_URL} \"点击跳转到 jenkins 构建页面\""
+                        String stageUrl = "${script.env.BUILD_URL} \"点击跳转到 jenkins 构建页面\""
                         String nowTime = utils.getNowTime()
                         Integer runCnt = table.getStageRunTotal(it.name as String) + 1
                         if (needRun) {
@@ -310,7 +315,7 @@ class ManCI implements Serializable {
                             buildResult = 3
                         } else if (localError instanceof WarningException) {
                             logger.warn("warning info: ${localError.getMessage().replace('\n', ' ')}")
-                            stageUrl = "${script.env.RUN_DISPLAY_URL} \"${localError.getMessage().replace('\n', ' ')}\""
+                            stageUrl = "${script.env.BUILD_URL} \"${localError.getMessage().replace('\n', ' ')}\""
                             script.currentBuild.result = "UNSTABLE"
                             localError = null
                             buildResult = 4
@@ -337,7 +342,7 @@ class ManCI implements Serializable {
                         }
 
                         if (localError) {
-                            stageUrl = "${script.env.RUN_DISPLAY_URL} \"${errorMessage.replace('\n', ' ')}\""
+                            stageUrl = "${script.env.BUILD_URL} \"${errorMessage.replace('\n', ' ')}\""
                             logger.info("stageUrl: ${stageUrl}")
                         }
                         long timeForOne = System.currentTimeMillis() - startTime

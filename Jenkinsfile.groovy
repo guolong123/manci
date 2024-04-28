@@ -28,6 +28,8 @@ manci.failFast = true  // 是否失败即停止
 
 manci.allStageOnComment = true // 所有 stage 都支持评论触发，触发指令为 rebuild <stageName>
 
+manci.enablePRLinkShortText = true
+
 manci.withRun() {
 
     manci.stage("check-pr-title", [group: "before", trigger: ["OnComment", "OnUpdate"], mark: "[访问地址](#)"]) {

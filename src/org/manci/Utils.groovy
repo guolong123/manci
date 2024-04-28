@@ -116,6 +116,10 @@ class Utils implements Serializable {
         }
         def colorList = ["green", "#8A2BE2", "#FF8C00"]
         def randomColor = colorList[new Random().nextInt(colorList.size ())]
-        script.addShortText(text: text, background: "white", color: randomColor, link: link)
+        try{
+            script.addShortText(text: text, background: "white", color: randomColor, link: link)
+        }catch (NoSuchMethodError ignored){
+            logger.error("Please ensure to install the \"Groovy Postbuild\" plugin from https://plugins.jenkins.io/groovy-postbuild/ to utilize the \"addShortText\" functionality")
+        }
     }
 }
