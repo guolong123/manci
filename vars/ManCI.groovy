@@ -124,6 +124,7 @@ class ManCI implements Serializable {
 
     def withRun(String nodeLabels = null, Closure body) {
         setParams()
+        utils.addPullRequestLink()
         logger.info("action type: ${script.env.giteeActionType}")
         if (this.script.env.noteBody) {
             // 当存在这个环境变量时则解析这个 comment，注入 kv到环境变量

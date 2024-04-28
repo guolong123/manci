@@ -106,4 +106,16 @@ class Utils implements Serializable {
 
         return totalMilliseconds
     }
+
+    def addPullRequestLink(String text = null, String link = null){
+        if (! text){
+            text = "PR[${script.env.giteePullRequestIid}]"
+        }
+        if(! link){
+            link = "https://gitee.com/${script.env.giteeTargetNamespace}/${script.env.giteeTargetRepoName}/pulls/${script.env.giteePullRequestIid}"
+        }
+        def colorList = ["green", "#8A2BE2", "#FF8C00"]
+        def randomColor = colorList[new Random().nextInt(colorList.size ())]
+        script.addShortText(text: text, background: "white", color: randomColor, link: link)
+    }
 }
