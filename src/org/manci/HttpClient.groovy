@@ -60,7 +60,11 @@ class HttpClient implements Serializable {
                 headers = this.headers
 
                 if (bodyData && ["POST", "PUT", "PATCH"].contains(method.toUpperCase())) {
-                    body = bodyData instanceof Map ? JsonOutput.toJson(bodyData) : bodyData
+                    if(bodyData instanceof Map || bodyData instanceof List){
+                        body = JsonOutput.toJson(bodyData)
+                    }else{
+                        body = bodyData.toString()
+                    }
                 }
 
                 // 响应处理

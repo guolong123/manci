@@ -5,7 +5,7 @@ import org.manci.Utils
 import org.manci.Event
 import org.manci.Group
 import org.manci.WarningException
-
+import org.manci.Metric
 
 class ManCI implements Serializable {
     transient Map<String, List<Map<String, Object>>> stagesInfo = [:]
@@ -14,7 +14,8 @@ class ManCI implements Serializable {
     transient Exception error = null
     Logger logger
     GiteeApi giteeApi
-    boolean enablePRLinkShortText = true  // 在 jenkins 构建 job 列表显示 Gitee PR 的 shortText，需要安装 jenkins 插件：https://plugins.jenkins.io/groovy-postbuild
+    boolean enablePRLinkShortText = true
+    // 在 jenkins 构建 job 列表显示 Gitee PR 的 shortText，需要安装 jenkins 插件：https://plugins.jenkins.io/groovy-postbuild
     String runModel = "parallel" // single, parallel
     String instructionPrefix = "run"
     transient public List<Map<String, Object>> parameters
@@ -41,6 +42,9 @@ class ManCI implements Serializable {
     Group group = null
     String jobTriggerType = "pullRequest" // 触发类型，目前支持：pullRequest, push, manual
     boolean autoTest = false
+    Metric metric
+    boolean openMetric = false
+    Map dataRepoInfo = null
 
     ManCI(script, String loggerLevel = "info", String CIName = null, String instructionPrefix = "run") {
         this.script = script
@@ -56,7 +60,6 @@ class ManCI implements Serializable {
 
         this.event = new Event(script, this.instructionPrefix)
         group = new Group()
-
     }
 
     def setParams() {
@@ -123,9 +126,10 @@ class ManCI implements Serializable {
         }
     }
 
-    def withRun(String nodeLabels = null, Closure body) {
-        setParams()
 
+    def withRun(String nodeLabels = null, Closure body) {
+
+        setParams()
         logger.info("action type: ${script.env.giteeActionType}")
         if (this.script.env.noteBody) {
             // 当存在这个环境变量时则解析这个 comment，注入 kv到环境变量
@@ -137,7 +141,7 @@ class ManCI implements Serializable {
 
         if ("${script.env.ref}" != "null" && script.env.giteeActionType != "PUSH") {
             this.jobTriggerType = "pullRequest"
-            if (enablePRLinkShortText){
+            if (enablePRLinkShortText) {
                 utils.addPullRequestLink()
             }
         } else if (script.env.giteeActionType == "PUSH") {
@@ -146,87 +150,116 @@ class ManCI implements Serializable {
             this.jobTriggerType = "manual"
         }
 
-
         script.withCredentials([script.string(credentialsId: GITEE_ACCESS_TOKEN_KEY, variable: "GITEE_ACCESS_TOKEN")]) {
             String repoPath = script.env.giteeTargetNamespace + '/' + script.env.giteeTargetRepoName
             logger.debug "script.env.GITEE_ACCESS_TOKEN: ${script.env.GITEE_ACCESS_TOKEN}"
             giteeApi = new GiteeApi(script, "${script.env.GITEE_ACCESS_TOKEN}", repoPath, script.env.giteePullRequestIid, CIName)
         }
         if (jobTriggerType == "pullRequest") {
-            if(autoTest){
+            if (autoTest) {
                 giteeApi.resetTest()
             }
             giteeApi.label(giteeApi.labelWaiting)
         }
         script.node(nodeLabels) {
-            if (jobTriggerType == "pullRequest") {
-                giteeApi.label(giteeApi.labelRunning)
+            if ("${script.env.SEND_METRIC}" == "true") {
+                // 当环境变量存在SEND_METRIC=true时，开启指标数据上报，可在 Jenkins 系统设置中添加全局环境变量
+                this.openMetric = true
+                dataRepoInfo = [
+                        "serviceType": "${script.env.SEND_METRIC_SERVER_TYPE}",
+                        "token"      : "${script.env.SEND_METRIC_TOKEN}",
+                        "serviceUrl" : "${script.env.SEND_METRIC_SERVER_URL}",
+                        "repo"       : "${script.env.SEND_METRIC_REPO}",
+                        "sourcetype" : "${script.env.SEND_METRIC_SOURCETYPE}"
+                ]
+                this.metric = new Metric(script, dataRepoInfo)
             }
-
-            def checkoutStage = {
-                if (script.env.LOGGER_LEVEL && script.env.LOGGER_LEVEL.toLowerCase() == "debug") {
-                    script.sh 'env'
-                }
-                def scmVars = script.checkout script.scm
-                scmVars.each {
-                    logger.debug("${it.key}: ${it.value}")
-                }
+            def c = {
                 if (jobTriggerType == "pullRequest") {
-                    logger.debug "checkout: url ${script.env.giteeTargetRepoSshUrl}, branch: ${script.env.ref}"
-                    script.checkout([$class           : 'GitSCM', branches: [[name: script.env.ref]], extensions: [],
-                                     userRemoteConfigs: [[credentialsId: SSH_SECRET_KEY,
-                                                          url          : "${script.env.giteeTargetRepoSshUrl}"]]])
+                    giteeApi.label(giteeApi.labelRunning)
+                }
 
-
-                } else {
-                    if (!script.env.BRANCH_NAME) {
-                        script.env.BRANCH_NAME = scmVars.GIT_BRANCH
+                def checkoutStage = {
+                    if (script.env.LOGGER_LEVEL && script.env.LOGGER_LEVEL.toLowerCase() == "debug") {
+                        script.sh 'env'
                     }
-                    def gitUrl = scmVars.GIT_URL
-                    script.checkout([$class           : 'GitSCM',
-                                     branches         : [[name: script.env.BRANCH_NAME]], extensions: [],
-                                     userRemoteConfigs: [[credentialsId: SSH_SECRET_KEY,
-                                                          url          : gitUrl]]
-                    ])
+                    def scmVars = script.checkout script.scm
+                    scmVars.each {
+                        logger.debug("${it.key}: ${it.value}")
+                    }
+                    if (jobTriggerType == "pullRequest") {
+                        logger.debug "checkout: url ${script.env.giteeTargetRepoSshUrl}, branch: ${script.env.ref}"
+                        script.checkout([$class           : 'GitSCM', branches: [[name: script.env.ref]], extensions: [],
+                                         userRemoteConfigs: [[credentialsId: SSH_SECRET_KEY,
+                                                              url          : "${script.env.giteeTargetRepoSshUrl}"]]])
+
+
+                    } else {
+                        if (!script.env.BRANCH_NAME) {
+                            script.env.BRANCH_NAME = scmVars.GIT_BRANCH
+                        }
+                        def gitUrl = scmVars.GIT_URL
+                        script.checkout([$class           : 'GitSCM',
+                                         branches         : [[name: script.env.BRANCH_NAME]], extensions: [],
+                                         userRemoteConfigs: [[credentialsId: SSH_SECRET_KEY,
+                                                              url          : gitUrl]]
+                        ])
+                    }
                 }
-            }
 
-            stagesInfo["before"] = []
-            stagesInfo["before"].add([
-                    "name": "checkout",
-                    "trigger"    : ["Always"],
-                    "envMatches" : [:],
-                    "fileMatches": "",
-                    "noteMatches": [],
-                    "mark"       : "[:fa-git-square:](# \"代码检出，这是一个内置的 stage\")",
-                    "fastFail"   : true,
-                    "group"      : "before"
-            ])
-            group.addStage("checkout", checkoutStage)
+                stagesInfo["before"] = []
+                stagesInfo["before"].add([
+                        "name"       : "checkout",
+                        "trigger"    : ["Always"],
+                        "envMatches" : [:],
+                        "fileMatches": "",
+                        "noteMatches": [],
+                        "mark"       : "[:fa-git-square:](# \"代码检出，这是一个内置的 stage\")",
+                        "fastFail"   : true,
+                        "group"      : "before"
+                ])
+                group.addStage("checkout", checkoutStage)
 
-            body.call()
-            try {
-                this.run()
-            } catch (Exception e) {
+                body.call()
+                try {
+                    this.run()
+                } catch (Exception e) {
+                    if (jobTriggerType == "pullRequest") {
+                        giteeApi.label(giteeApi.labelFailure)
+                    }
+                    throw e
+                }
                 if (jobTriggerType == "pullRequest") {
-                    giteeApi.label(giteeApi.labelFailure)
+                    giteeApi.label(giteeApi.labelSuccess)
+                    if (autoTest) {
+                        giteeApi.testPass()
+                    }
                 }
-                throw e
             }
-            if (jobTriggerType == "pullRequest") {
-                giteeApi.label(giteeApi.labelSuccess)
-                if(autoTest){
-                    giteeApi.testPass()
-                }
+            if (this.openMetric) {
+                this.metric.withMetricForJob(c)
+            } else {
+                c.call()
             }
         }
     }
 
     Exception runStage(String name, boolean needRun) {
         Exception error = null
+
         if (needRun) {
+
             try {
-                script.stage(name, group.getStage(name as String))
+                def c = {
+                    script.stage(name, group.getStage(name as String))
+                }
+                script.env.STAGE_NAME = name
+                if (this.openMetric) {
+                    this.metric.withMetricForStage(c)
+                } else {
+                    c.call()
+                }
+
             } catch (Exception e) {
                 error = e
                 logger.error("stage [${name}] run with error: ${e}")
@@ -245,11 +278,11 @@ class ManCI implements Serializable {
             def paramsDescription = [] as List<String>
             paramsDescriptionMap.each { name, thisObject ->
                 def defaultValue = ""
-                if(thisObject.get("type") as String == "string"){
+                if (thisObject.get("type") as String == "string") {
                     defaultValue = "默认值：${thisObject.get("defaultValue")},"
-                }else if (thisObject.get("type") == "choice"){
+                } else if (thisObject.get("type") == "choice") {
                     defaultValue = "可选项：${thisObject.get("choices").toString()},"
-                }else if (thisObject.get("type") == "boolean"){
+                } else if (thisObject.get("type") == "boolean") {
                     defaultValue = "默认值：${thisObject.get("defaultValue") == true ? "true" : "false"},"
                 }
 
@@ -307,7 +340,7 @@ class ManCI implements Serializable {
                         }
                         localError = runStage(it.name as String, needRun)
                         String errorMessage = ""
-                        if(localError != null){
+                        if (localError != null) {
                             errorMessage = localError.getMessage()
                         }
 
@@ -321,22 +354,22 @@ class ManCI implements Serializable {
                             buildResult = 4
                         } else if (localError instanceof org.jenkinsci.plugins.workflow.steps.FlowInterruptedException) {
                             buildResult = 2
-                            if (!errorMessage){
+                            if (!errorMessage) {
                                 errorMessage = "build aborted"
                             }
                         } else if (localError instanceof InterruptedException) {
                             buildResult = 2
-                            if (!errorMessage){
+                            if (!errorMessage) {
                                 errorMessage = "build aborted"
                             }
                         } else if (localError instanceof NotSerializableException) {
                             buildResult = 1
-                            if (!errorMessage){
+                            if (!errorMessage) {
                                 errorMessage = "序列化错误。尽管该项目中已经尽可能避免 Jenkins 序列化错误，可能还是会存在漏掉的情况，遇到此情况请上报 issue"
                             }
                         } else if (localError instanceof Exception) {
                             buildResult = 1
-                            if (!errorMessage){
+                            if (!errorMessage) {
                                 errorMessage = "其它错误，请检查stage 内相关代码逻辑"
                             }
                         }
