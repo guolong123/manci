@@ -97,6 +97,7 @@ class ManCI implements Serializable {
     def stage(String stageName, Map<String, Object> stageConfig, Closure body) {
         def groupName = stageConfig.get("group", "default")
         def trigger = stageConfig.get("trigger", "always")
+        def timeout = stageConfig.get("timeout", 3600) // 默认超时时间为 3600 秒
         // always, pr_merge, pr_open, pr_close, pr_push, pr_test_pass, pr_review_pass, env_match, file_match
         Map<String, Object> envMatches = stageConfig.get("envMatches", [:]) as Map<String, Object>
         String fileMatches = stageConfig.get("fileMatches", "") as String
@@ -114,7 +115,8 @@ class ManCI implements Serializable {
                 "noteMatches": noteMatches,
                 "mark"       : mark,
                 "fastFail"   : fastFail,
-                "group"      : groupName
+                "group"      : groupName,
+                "timeout"    : timeout
         ])
         group.addStage(stageName, body)
     }
@@ -216,7 +218,8 @@ class ManCI implements Serializable {
                         "noteMatches": [],
                         "mark"       : "[:fa-git-square:](# \"代码检出，这是一个内置的 stage\")",
                         "fastFail"   : true,
-                        "group"      : "before"
+                        "group"      : "before",
+                        "timeout"    : 3600
                 ])
                 group.addStage("checkout", checkoutStage)
 
@@ -244,14 +247,18 @@ class ManCI implements Serializable {
         }
     }
 
-    Exception runStage(String name, boolean needRun) {
+    Exception runStage(String name, boolean needRun, Integer timeout = 3600) {
         Exception error = null
 
         if (needRun) {
 
             try {
                 def c = {
-                    script.stage(name, group.getStage(name as String))
+                    script.stage(name){
+                        script.timeout(time: timeout, unit: 'SECONDS') {
+                            group.getStage(name as String).call()
+                        }
+                    }
                 }
                 script.env.STAGE_NAME = name
                 if (this.openMetric) {
@@ -338,7 +345,7 @@ class ManCI implements Serializable {
                                 giteeApi.comment(table.text)
                             }
                         }
-                        localError = runStage(it.name as String, needRun)
+                        localError = runStage(it.name as String, needRun, it.timeout as Integer)
                         String errorMessage = ""
                         if (localError != null) {
                             errorMessage = localError.getMessage()
@@ -421,7 +428,7 @@ class ManCI implements Serializable {
                     Exception localError
                     v.each {
                         def needRun = event.needRunStageForPush(it as Map<String, Object>, error)
-                        localError = runStage(it.name as String, needRun)
+                        localError = runStage(it.name as String, needRun, it.timeout as Integer)
                         if (localError && it.fastFail as boolean) {
                             throw localError
                         } else if (localError) {
@@ -436,7 +443,7 @@ class ManCI implements Serializable {
                     Exception localError
                     v.each {
                         def needRun = event.needRunStageForManual(it as Map<String, Object>, error)
-                        localError = runStage(it.name as String, needRun)
+                        localError = runStage(it.name as String, needRun, it.timeout as Integer)
                         if (localError && it.fastFail as boolean) {
                             throw localError
                         } else if (localError) {

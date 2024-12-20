@@ -24,7 +24,7 @@ class Notify {
         this.webhookType = webhookType
 
     }
-
+    @NonCPS
     def sendWechatMessage(message) {
         def body = [
                 "msgtype" : "markdown",
@@ -32,7 +32,7 @@ class Notify {
         ]
         httpClient.post("/cgi-bin/webhook/send", body, ["key": access_token])
     }
-
+    @NonCPS
     def sendDingTalkMessage(message) {
         def body = [
                 "msgtype" : "markdown",
@@ -40,7 +40,7 @@ class Notify {
         ]
         httpClient.post("/robot/send", body, ["key": access_token])
     }
-
+    @NonCPS
     def sendMessage(String level = "info", String message = null, String title = "", String linkText = "", String user = "") {
         message = messageFormat(message, level, title, linkText, user)
         logger.info("sendMessage: ${message}")
@@ -50,21 +50,23 @@ class Notify {
             sendWechatMessage(message)
         }
     }
-
+    @NonCPS
     def sendFailureMessage(String message = null, String title = "", String linkText = "", String user = "") {
         if (!title) {
             title = "[PR]: [${script.env.giteePullRequestTitle}](https://gitee.com/${script.env.giteeTargetNamespace}/${script.env.giteeTargetRepoName}/pulls/${script.env.giteePullRequestIid}) Failure"
         }
         sendMessage("warning", message, title, linkText, user)
+        this.script.echo "send message success"
     }
-
+    @NonCPS
     def sendSuccessMessage(String message = null, String title = "", String linkText = "", String user = "") {
         if (!title) {
             title = "[PR]: [${script.env.giteePullRequestTitle}](https://gitee.com/${script.env.giteeTargetNamespace}/${script.env.giteeTargetRepoName}/pulls/${script.env.giteePullRequestIid}) Success"
         }
         sendMessage("info", message, title, linkText, user)
+        this.script.echo "send message success"
     }
-
+    @NonCPS
     String messageFormat(String message = null, String level = "info", String title = "", String linkText = "", String user = "") {
         String messageResult = ""
         if (!message) {

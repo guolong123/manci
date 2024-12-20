@@ -37,7 +37,7 @@ class Event {
     }
 
     static String getStageTrigger(List<String> triggers, GiteeApi giteeApi, Map<String, Object> stage) {
-        String runStrategy = ""
+        String  runStrategy = ""
 
         triggers.each { trigger ->
             if (trigger == "OnComment") {
