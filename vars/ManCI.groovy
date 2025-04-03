@@ -97,7 +97,7 @@ class ManCI implements Serializable {
     def stage(String stageName, Map<String, Object> stageConfig, Closure body) {
         def groupName = stageConfig.get("group", "default")
         def trigger = stageConfig.get("trigger", "always")
-        def timeout = stageConfig.get("timeout", 3600) // 默认超时时间为 3600 秒
+        def timeout = stageConfig.get("timeout", 7200) // 默认超时时间为 7200 秒
         // always, pr_merge, pr_open, pr_close, pr_push, pr_test_pass, pr_review_pass, env_match, file_match
         Map<String, Object> envMatches = stageConfig.get("envMatches", [:]) as Map<String, Object>
         String fileMatches = stageConfig.get("fileMatches", "") as String
@@ -219,7 +219,7 @@ class ManCI implements Serializable {
                         "mark"       : "[:fa-git-square:](# \"代码检出，这是一个内置的 stage\")",
                         "fastFail"   : true,
                         "group"      : "before",
-                        "timeout"    : 3600
+                        "timeout"    : 7200
                 ])
                 group.addStage("checkout", checkoutStage)
 
@@ -247,7 +247,7 @@ class ManCI implements Serializable {
         }
     }
 
-    Exception runStage(String name, boolean needRun, Integer timeout = 3600) {
+    Exception runStage(String name, boolean needRun, Integer timeout = 7200) {
         Exception error = null
 
         if (needRun) {

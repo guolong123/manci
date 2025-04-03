@@ -44,6 +44,9 @@ class Tools {
         List<String> prNumbers = PrNumberStr.split(" ")
         script.sshagent([sshAgentCredential]){
             script.sh "git checkout origin/${baseBranch}"
+            if (prNumbers.size() == 0){
+                return
+            }
             for (pr in prNumbers){
                 def PR_NAME="${script.env.BUILD_ID}_${pr}"
                 script.sh "git fetch origin pull/${pr}/head:${PR_NAME}"
